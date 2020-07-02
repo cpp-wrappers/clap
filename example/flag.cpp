@@ -2,14 +2,14 @@
 #include <vector>
 #include <iostream>
 #include <map>
-#include "../include/clap.hpp"
+#include "../include/posix_clap.hpp"
 
 using namespace std;
 
 void exec(vector<string> args) {
     map<char, bool> flags{{'a', false}, {'b', false}, {'c', false}};
 
-    clap::posix_clap parser;
+    clap::basic_posix_clap<char> parser;
 
     for_each(flags.begin(), flags.end(), [&](auto& p){
         parser.flag(p.first, p.second);
