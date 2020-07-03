@@ -6,24 +6,57 @@ namespace clap {
 
 template<class CharT>
 struct basic_posix_clap {
+    using str_t = std::basic_string<CharT>;
     using strv_t = std::basic_string_view<CharT>;
+    using parse_a_t = std::function<void(strv_t)>;
+    using parse_t = std::function<void()>;
+protected:
 
-    using handler_with_arg = std::function<void(strv_t)>;
-    using handler_without_arg = std::function<void()>;
+    struct handler_t {
+        parse_a_t on_parse;
+        bool has_arg;
 
-    std::map<char, handler_with_arg> handlers_with_arg;
-    std::map<char, handler_without_arg> handlers_without_arg;
+        bool required = false;
+        bool parsed = false;
+
+        handler_t(
+            parse_a_t parse,
+            bool required
+        )
+        :on_parse{parse},has_arg{true},required{required}{}
+
+        handler_t(
+            parse_t parse,
+            bool required
+        )
+        :on_parse{[=](strv_t){ parse(); }},has_arg{false},required{required}{}
+
+        void parse(strv_t arg) {
+            on_parse(arg);
+            parsed = true;
+        }
+    };
+
+    std::map<char, handler_t> handlers;
+    
+public:
+
+    template<class Handler>
+    void option(char name, Handler handler) {
+        handlers.emplace(name, handler_t{handler, false});
+    }
+
+    template<class Handler>
+    void required_option(char name, Handler handler) {
+        handlers.emplace(name, handler_t{handler, true});
+    }
 
     void flag(char name, bool& ref) {
         option(name, [&](){ ref = true; });
     }
 
-    void option(char name, handler_with_arg handler) {
-        handlers_with_arg.emplace(name, handler);
-    }
-
-    void option(char name, handler_without_arg handler) {
-        handlers_without_arg.emplace(name, handler);
+    void required_flag(char name, bool& ref) {
+        required_option(name, [&](){ ref = true; });
     }
 
     template<class Iter>
@@ -33,6 +66,13 @@ struct basic_posix_clap {
             if(first_char != '-') throw std::runtime_error("undefined argument: " + *arg);
             parse_option(arg, end);
         }
+
+        for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
+            auto& [name, h] = pair_;
+            if(h.required && !h.parsed)
+                throw std::runtime_error("option \'"+str_t(1, name)+"\' is required");
+            h.parsed=false;
+        });
     }
 
 protected:
@@ -41,20 +81,18 @@ protected:
         for(int i = 1; i < b->size(); i++) {
             char ch = b -> at(i);
 
-            auto without_arg = handlers_without_arg.find(ch);
+            auto& handler = handlers.find(ch)->second;
 
-            if(without_arg != handlers_without_arg.end()) {
-                without_arg->second();
+            if(!handler.has_arg) {
+                handler.parse(strv_t{});
                 continue;
             }
 
-            auto with_arg = handlers_with_arg[ch];
-
             if(std::distance(b->begin()+i+1, b->end()) == 0) {
                 b++;
-                with_arg(strv_t{b->begin(), b->end()});
+                handler.parse(strv_t{b->begin(), b->end()});
             }
-            else with_arg(strv_t{b->begin()+i+1, b->end()});
+            else handler.parse(strv_t{b->begin()+i+1, b->end()});
             break;
         }
     }

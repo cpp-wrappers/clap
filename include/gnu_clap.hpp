@@ -4,31 +4,32 @@ namespace clap {
 
 template<class CharT>
 struct basic_gnu_clap : basic_posix_clap<CharT> {
-    using str_t = std::basic_string<CharT>;
-
-    using typename basic_posix_clap<CharT>::handler_with_arg;
-    using typename basic_posix_clap<CharT>::handler_without_arg;
+    using typename basic_posix_clap<CharT>::str_t;
     using typename basic_posix_clap<CharT>::strv_t;
+    using typename basic_posix_clap<CharT>::handler_t;
 
-    std::map<str_t, handler_with_arg> handlers_with_arg;
-    std::map<str_t, handler_without_arg> handlers_without_arg;
+    std::map<str_t, handler_t> handlers;
 
-    void option(char name, str_t long_name, handler_without_arg handler) {
+    template<class Handler>
+    void option(str_t long_name, Handler handler) {
+        handlers.emplace(long_name, handler_t{handler, false});
+    }
+
+    template<class Handler>
+    void required_option(str_t long_name, Handler handler) {
+        handlers.emplace(long_name, {handler, true});
+    }
+
+    template<class Handler>
+    void option(CharT name, str_t long_name, Handler handler) {
         basic_posix_clap<CharT>::option(name, handler);
         option(long_name, handler);
     }
 
-    void option(char name, str_t long_name, handler_with_arg handler) {
-        basic_posix_clap<CharT>::option(name, handler);
-        option(long_name, handler);
-    }
-
-    void option(str_t long_name, handler_with_arg handler) {
-        handlers_with_arg.emplace(long_name, handler);
-    }
-
-    void option(str_t long_name, handler_without_arg handler) {
-        handlers_without_arg.emplace(long_name, handler);
+    template<class Handler>
+    void required_option(CharT name, str_t long_name, Handler handler) {
+        basic_posix_clap<CharT>::required_option(name, handler);
+        required_option(long_name, handler);
     }
 
     template<class Iter>
@@ -40,6 +41,12 @@ struct basic_gnu_clap : basic_posix_clap<CharT> {
             if(second_char != '-') basic_posix_clap<CharT>::parse_option(arg, end);
             else parse_option(arg, end);
         }
+        for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
+            auto& [name, h] = pair_;
+            if(h.required && !h.parsed)
+                throw std::runtime_error("option \'"+name+"\' is required");
+            h.parsed=false;
+        });
     }
 
 protected:
@@ -50,18 +57,17 @@ protected:
         auto option_end = has_eq_sign ? arg->begin()+eq_sign_pos : arg->end();
         str_t option{arg->begin()+2, option_end};
 
-        auto without_arg = handlers_without_arg.find(option);
-        if(without_arg != handlers_without_arg.end()) {
-            without_arg->second();
+        auto& handler = handlers.find(option)->second;
+        if(!handler.has_arg) {
+            handler.parse(strv_t{});
             return;
         }
 
-        auto with_arg = handlers_with_arg[option];
         if(!has_eq_sign) throw std::runtime_error("option \'"+option+"\' must have an argument");
         auto arg_begin = option_end+1;
         if(std::distance(arg_begin, arg->end()) == 0)
             throw std::runtime_error("argument length for option \'" + option + "\' is zero");
-        with_arg(strv_t{arg_begin, arg->end()});
+        handler.parse(strv_t{arg_begin, arg->end()});
     }
 };
 

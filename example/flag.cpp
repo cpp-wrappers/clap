@@ -12,7 +12,7 @@ void exec(vector<string> args) {
     clap::basic_posix_clap<char> parser;
 
     for_each(flags.begin(), flags.end(), [&](auto& p){
-        parser.flag(p.first, p.second);
+        parser.required_flag(p.first, p.second);
     });
 
     parser.parse(args.begin(), args.end());
