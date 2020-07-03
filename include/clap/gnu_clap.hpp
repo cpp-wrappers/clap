@@ -32,16 +32,20 @@ struct basic_gnu_clap : basic_posix_clap<CharT> {
         required_option(long_name, handler);
     }
 
+    void flag(str_t long_name, bool& ref) {
+        option(long_name, [&](){ ref = true; });
+    }
+
     template<class Iter>
     void parse(Iter begin, Iter end) {
         for(auto arg = begin; arg != end; arg++) {
-            char first_char = arg->at(0);
-            if(first_char != '-') throw std::runtime_error("undefined argument: " + *arg);
-            char second_char = arg->at(1);
+            char first_char = (*arg)[0];
+            if(first_char != '-') throw std::runtime_error("undefined argument: " + str_t{*arg});
+            char second_char = (*arg)[1];
             if(second_char != '-') basic_posix_clap<CharT>::parse_option(arg, end);
             else parse_option(arg, end);
         }
-        for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
+        std::for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
             auto& [name, h] = pair_;
             if(h.required && !h.parsed)
                 throw std::runtime_error("option \'"+name+"\' is required");
@@ -51,11 +55,12 @@ struct basic_gnu_clap : basic_posix_clap<CharT> {
 
 protected:
     template<class Iter>
-    void parse_option(Iter& arg, Iter& e) {
-        auto eq_sign_pos = arg->find_first_of('=', 2);
+    void parse_option(Iter& b, Iter& e) {
+        str_t arg{*b};
+        auto eq_sign_pos = arg.find_first_of('=', 2);
         bool has_eq_sign = eq_sign_pos != str_t::npos;
-        auto option_end = has_eq_sign ? arg->begin()+eq_sign_pos : arg->end();
-        str_t option{arg->begin()+2, option_end};
+        auto option_end = has_eq_sign ? arg.begin()+eq_sign_pos : arg.end();
+        str_t option{arg.begin()+2, option_end};
 
         auto& handler = handlers.find(option)->second;
         if(!handler.has_arg) {
@@ -65,9 +70,9 @@ protected:
 
         if(!has_eq_sign) throw std::runtime_error("option \'"+option+"\' must have an argument");
         auto arg_begin = option_end+1;
-        if(std::distance(arg_begin, arg->end()) == 0)
+        if(std::distance(arg_begin, arg.end()) == 0)
             throw std::runtime_error("argument length for option \'" + option + "\' is zero");
-        handler.parse(strv_t{arg_begin, arg->end()});
+        handler.parse(strv_t{arg_begin, arg.end()});
     }
 };
 

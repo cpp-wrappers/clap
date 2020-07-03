@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <map>
-#include "../include/posix_clap.hpp"
+#include "../include/clap/posix_clap.hpp"
 
 using namespace std;
 
@@ -12,7 +12,7 @@ void exec(vector<string> args) {
     clap::basic_posix_clap<char> parser;
 
     for_each(flags.begin(), flags.end(), [&](auto& p){
-        parser.required_flag(p.first, p.second);
+        parser.flag(p.first, p.second);
     });
 
     parser.parse(args.begin(), args.end());

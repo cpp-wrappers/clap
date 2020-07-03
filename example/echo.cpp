@@ -1,7 +1,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
-#include "../include/gnu_clap.hpp"
+#include "../include/clap/gnu_clap.hpp"
 
 using namespace std;
 using namespace clap;

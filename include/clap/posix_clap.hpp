@@ -55,19 +55,15 @@ public:
         option(name, [&](){ ref = true; });
     }
 
-    void required_flag(char name, bool& ref) {
-        required_option(name, [&](){ ref = true; });
-    }
-
     template<class Iter>
     void parse(Iter begin, Iter end) {
         for(auto arg = begin; arg != end; arg++) {
-            auto first_char = arg->at(0);
+            auto first_char = (*arg)[0];
             if(first_char != '-') throw std::runtime_error("undefined argument: " + *arg);
             parse_option(arg, end);
         }
 
-        for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
+        std::for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
             auto& [name, h] = pair_;
             if(h.required && !h.parsed)
                 throw std::runtime_error("option \'"+str_t(1, name)+"\' is required");
@@ -78,8 +74,9 @@ public:
 protected:
     template<class Iter>
     void parse_option(Iter& b, Iter& e) {
-        for(int i = 1; i < b->size(); i++) {
-            char ch = b -> at(i);
+        str_t arg{*b};
+        for(int i = 1; i < arg.size(); i++) {
+            char ch = arg.at(i);
 
             auto& handler = handlers.find(ch)->second;
 
@@ -88,11 +85,11 @@ protected:
                 continue;
             }
 
-            if(std::distance(b->begin()+i+1, b->end()) == 0) {
+            if(std::distance(arg.begin()+i+1, arg.end()) == 0) {
                 b++;
-                handler.parse(strv_t{b->begin(), b->end()});
+                handler.parse(strv_t{arg.begin(), arg.end()});
             }
-            else handler.parse(strv_t{b->begin()+i+1, b->end()});
+            else handler.parse(strv_t{arg.begin()+i+1, arg.end()});
             break;
         }
     }

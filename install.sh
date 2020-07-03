@@ -1,0 +1,1 @@
+[ -z "$1" ] && echo "arg is root for include dir" || cp -rv include $1
