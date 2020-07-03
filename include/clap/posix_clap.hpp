@@ -37,21 +37,21 @@ protected:
         }
     };
 
-    std::map<char, handler_t> handlers;
+    std::map<CharT, handler_t> handlers;
     
 public:
 
     template<class Handler>
-    void option(char name, Handler handler) {
+    void option(CharT name, Handler handler) {
         handlers.emplace(name, handler_t{handler, false});
     }
 
     template<class Handler>
-    void required_option(char name, Handler handler) {
+    void required_option(CharT name, Handler handler) {
         handlers.emplace(name, handler_t{handler, true});
     }
 
-    void flag(char name, bool& ref) {
+    void flag(CharT name, bool& ref) {
         option(name, [&](){ ref = true; });
     }
 
