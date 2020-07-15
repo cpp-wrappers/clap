@@ -63,31 +63,33 @@ public:
         const It end,
         std::function<void(const It, It&, const It)> operands_handler = [](const It, It&, const It){}
     ) {
-        auto cl_arg = begin;
-        for(; cl_arg != end; cl_arg++) {
-            auto first_char = (*cl_arg)[0];
-            auto second_char = (*cl_arg)[1];
+        It arg = begin;
+        while(arg != end) {
+            auto first_char = (*arg)[0];
+            auto second_char = (*arg)[1];
             if(first_char != '-') break;
 
             if(second_char != '-') {
-                It prev = cl_arg;
-                parse_option(begin, cl_arg, end);
-                if(prev == cl_arg)
+                It prev = arg;
+                parse_option(begin, arg, end);
+                if(prev == arg)
                     break;
             }
-            else if(cl_arg->size()==2){
-                cl_arg++; // skip '--', point to operands beg
+            else if((*arg)[2] == 0){
+                arg++; // skip '--', point to operands beg
                 break;
             }
         }
 
-        for(; cl_arg != end; cl_arg++) {
-            It prev = cl_arg;
-            operands_handler(begin, cl_arg, end);
-            if(prev == cl_arg)
-                throw std::runtime_error("operand isn't parsed: "+*cl_arg);
-        }
+        while(arg != end) 
+            parse_operand(begin, arg, end, operands_handler);
 
+        on_parse_end();
+    }
+
+protected:
+
+    void on_parse_end() {
         for(auto& [name, h] : handlers) {
             if(h.required && !h.parsed)
                 throw std::runtime_error("option \'"+str_t{1, name}+"\' is required");
@@ -95,38 +97,60 @@ public:
         }
     }
 
-protected:
+    handler_t* find(CharT name) {
+        auto pair = handlers.find(name);
+        return pair == handlers.end() ? nullptr : &(pair->second);
+    }
+
     template<class It>
-    void parse_option(const It being, It& cl_arg, const It end) {
-        auto first_ch = cl_arg->c_str()+1; // skip '-'
+    void parse_operand(
+        const It begin,
+        It& arg,
+        const It end,
+        std::function<void(const It, It&, const It)> operands_handler
+    ) {
+        It prev = arg;
+        operands_handler(begin, arg, end);
+        if(prev == arg)
+            throw std::runtime_error("operand isn't parsed: "+str_t{*arg});
+    }
+
+    template<class It>
+    void parse_option(const It begin, It& arg_it, const It end) {
+        strv_t arg{*arg_it};
+
+        auto first_ch = arg.begin()+1; // skip '-'
+
         for(auto ch = first_ch;*ch; ch++) {
             char name = *ch;
-            auto pair = handlers.find(name);
-            if(pair == handlers.end()) {
+            auto handler = find(name);
+            if(!handler) {
                 if(ch == first_ch)
                     return; // assuming that's operand
                 else throw std::runtime_error("undefined option: "+str_t{1, name});
             }
-            auto& handler = pair->second;
 
-            if(!handler.has_arg) {
-                handler.parse({});
+            if(!handler->has_arg) {
+                handler->parse({});
                 continue;
             }
 
             ++ch; // to end or option argument beginning
-            bool next_arg = !*ch;
+            bool next_arg = ch == arg.end();
 
             if(next_arg) {
-                if(++cl_arg==end)
+                if(++arg_it==end)
                     throw std::runtime_error("argument is required for option '"+str_t{1, name}+"'");
-                ch = cl_arg->c_str();
+                arg = *arg_it;
+                ch = arg.begin();
             }
 
-            handler.parse({ch});
+            handler->parse({ch});
 
-            return;
+            break;
         }
+
+        arg_it++;
     }
 };
 
