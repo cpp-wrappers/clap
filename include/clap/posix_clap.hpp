@@ -6,6 +6,7 @@ namespace clap {
 
 template<class CharT>
 struct basic_posix_clap {
+    using this_t = basic_posix_clap<CharT>;
     using str_t = std::basic_string<CharT>;
     using strv_t = std::basic_string_view<CharT>;
     using parse_a_t = std::function<void(strv_t)>;
@@ -42,55 +43,91 @@ protected:
 public:
 
     template<class Handler>
-    void option(CharT name, Handler handler) {
+    this_t option(CharT name, Handler handler) {
         handlers.emplace(name, handler_t{handler, false});
+        return *this;
     }
 
     template<class Handler>
-    void required_option(CharT name, Handler handler) {
+    this_t required_option(CharT name, Handler handler) {
         handlers.emplace(name, handler_t{handler, true});
+        return *this;
     }
 
-    void flag(CharT name, bool& ref) {
+    this_t flag(CharT name, bool& ref) {
         option(name, [&](){ ref = true; });
+        return *this;
     }
 
-    template<class Iter>
-    void parse(Iter begin, Iter end) {
-        for(auto arg = begin; arg != end; arg++) {
-            auto first_char = (*arg)[0];
-            if(first_char != '-') throw std::runtime_error("undefined argument: " + *arg);
-            parse_option(arg, end);
+    template<class It>
+    void parse(
+        const It begin,
+        const It end,
+        std::function<void(const It, It&, const It)> operands_handler = [](const It, It&, const It){}
+    ) {
+        auto cl_arg = begin;
+        for(; cl_arg != end; cl_arg++) {
+            auto first_char = (*cl_arg)[0];
+            auto second_char = (*cl_arg)[1];
+            if(first_char != '-') break;
+
+            if(second_char != '-') {
+                It prev = cl_arg;
+                parse_option(begin, cl_arg, end);
+                if(prev == cl_arg)
+                    break;
+            }
+            else if(cl_arg->size()==2){
+                cl_arg++; // skip '--', point to operands beg
+                break;
+            }
         }
 
-        std::for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
-            auto& [name, h] = pair_;
+        for(; cl_arg != end; cl_arg++) {
+            It prev = cl_arg;
+            operands_handler(begin, cl_arg, end);
+            if(prev == cl_arg)
+                throw std::runtime_error("operand isn't parsed: "+*cl_arg);
+        }
+
+        for(auto& [name, h] : handlers) {
             if(h.required && !h.parsed)
-                throw std::runtime_error("option \'"+str_t(1, name)+"\' is required");
+                throw std::runtime_error("option \'"+str_t{1, name}+"\' is required");
             h.parsed=false;
-        });
+        }
     }
 
 protected:
-    template<class Iter>
-    void parse_option(Iter& b, Iter& e) {
-        str_t arg{*b};
-        for(int i = 1; i < arg.size(); i++) {
-            char ch = arg.at(i);
-
-            auto& handler = handlers.find(ch)->second;
+    template<class It>
+    void parse_option(const It being, It& cl_arg, const It end) {
+        auto first_ch = cl_arg->c_str()+1; // skip '-'
+        for(auto ch = first_ch;*ch; ch++) {
+            char name = *ch;
+            auto pair = handlers.find(name);
+            if(pair == handlers.end()) {
+                if(ch == first_ch)
+                    return; // assuming that's operand
+                else throw std::runtime_error("undefined option: "+str_t{1, name});
+            }
+            auto& handler = pair->second;
 
             if(!handler.has_arg) {
-                handler.parse(strv_t{});
+                handler.parse({});
                 continue;
             }
 
-            if(std::distance(arg.begin()+i+1, arg.end()) == 0) {
-                b++;
-                handler.parse(strv_t{arg.begin(), arg.end()});
+            ++ch; // to end or option argument beginning
+            bool next_arg = !*ch;
+
+            if(next_arg) {
+                if(++cl_arg==end)
+                    throw std::runtime_error("argument is required for option '"+str_t{1, name}+"'");
+                ch = cl_arg->c_str();
             }
-            else handler.parse(strv_t{arg.begin()+i+1, arg.end()});
-            break;
+
+            handler.parse({ch});
+
+            return;
         }
     }
 };

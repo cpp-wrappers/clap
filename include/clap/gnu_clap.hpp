@@ -3,76 +3,108 @@
 namespace clap {
 
 template<class CharT>
-struct basic_gnu_clap : basic_posix_clap<CharT> {
+struct basic_gnu_clap : protected basic_posix_clap<CharT> {
+    using this_t = basic_gnu_clap<CharT>;
     using typename basic_posix_clap<CharT>::str_t;
     using typename basic_posix_clap<CharT>::strv_t;
     using typename basic_posix_clap<CharT>::handler_t;
 
-    std::map<str_t, handler_t> handlers;
+    std::map<strv_t, handler_t> handlers;
 
     template<class Handler>
-    void option(str_t long_name, Handler handler) {
+    this_t option(strv_t long_name, Handler handler) {
         handlers.emplace(long_name, handler_t{handler, false});
+        return *this;
     }
 
     template<class Handler>
-    void required_option(str_t long_name, Handler handler) {
+    this_t required_option(strv_t long_name, Handler handler) {
         handlers.emplace(long_name, {handler, true});
+        return *this;
     }
 
     template<class Handler>
-    void option(CharT name, str_t long_name, Handler handler) {
+    this_t option(CharT name, strv_t long_name, Handler handler) {
         basic_posix_clap<CharT>::option(name, handler);
         option(long_name, handler);
+        return *this;
     }
 
     template<class Handler>
-    void required_option(CharT name, str_t long_name, Handler handler) {
+    this_t required_option(CharT name, strv_t long_name, Handler handler) {
         basic_posix_clap<CharT>::required_option(name, handler);
         required_option(long_name, handler);
+        return *this;
     }
 
-    void flag(str_t long_name, bool& ref) {
+    this_t flag(strv_t long_name, bool& ref) {
         option(long_name, [&](){ ref = true; });
+        return *this;
     }
 
-    template<class Iter>
-    void parse(Iter begin, Iter end) {
-        for(auto arg = begin; arg != end; arg++) {
-            char first_char = (*arg)[0];
-            if(first_char != '-') throw std::runtime_error("undefined argument: " + str_t{*arg});
-            char second_char = (*arg)[1];
-            if(second_char != '-') basic_posix_clap<CharT>::parse_option(arg, end);
-            else parse_option(arg, end);
+    template<class It>
+    void parse(
+        const It begin,
+        const It end,
+        std::function<void(const It, It&, const It)> operands_handler = [](const It, It&, const It){}
+    ) {
+        It cl_arg = begin;
+        for(; cl_arg != end; cl_arg++) {
+            char first_char = (*cl_arg)[0];
+            if(first_char == '-') {
+                char second_char = (*cl_arg)[1];
+                if(second_char != '-') {
+                    basic_posix_clap<CharT>::parse_option(begin, cl_arg, end);
+                    continue;
+                }
+                else if(cl_arg->size()>2){
+                    It prev = cl_arg;
+                    parse_option(begin, cl_arg, end);
+                    if(prev != cl_arg)
+                        continue;
+                }
+                else
+                    if(++cl_arg == end) break; // skip '--'
+            }
+
+            It prev = cl_arg;
+            operands_handler(begin, cl_arg, end);
+            if(prev == cl_arg)
+                    throw std::runtime_error("operand isn't parsed: "+*cl_arg);
         }
-        std::for_each(handlers.begin(), handlers.end(), [](auto& pair_) {
-            auto& [name, h] = pair_;
+        for(auto& [name, h] : handlers) {
             if(h.required && !h.parsed)
-                throw std::runtime_error("option \'"+name+"\' is required");
+                throw std::runtime_error("option \'"+str_t{name}+"\' is required");
             h.parsed=false;
-        });
+        }
     }
 
 protected:
-    template<class Iter>
-    void parse_option(Iter& b, Iter& e) {
-        str_t arg{*b};
-        auto eq_sign_pos = arg.find_first_of('=', 2);
+    template<class It>
+    void parse_option(const It begin, It& arg, const It e) {
+        auto option_beg_pos = 2; // skip '--'
+        auto option_beg = arg->begin()+option_beg_pos;
+        auto eq_sign_pos = arg->find_first_of('=', option_beg_pos);
         bool has_eq_sign = eq_sign_pos != str_t::npos;
-        auto option_end = has_eq_sign ? arg.begin()+eq_sign_pos : arg.end();
-        str_t option{arg.begin()+2, option_end};
+        auto option_end = has_eq_sign ? arg->begin()+eq_sign_pos : arg->end();
 
-        auto& handler = handlers.find(option)->second;
+        strv_t option{option_beg, option_end};
+
+        auto pair = handlers.find(option);
+        if(pair == handlers.end()) return;
+        auto& handler = pair->second;
+
         if(!handler.has_arg) {
-            handler.parse(strv_t{});
+            handler.parse({});
             return;
         }
 
-        if(!has_eq_sign) throw std::runtime_error("option \'"+option+"\' must have an argument");
-        auto arg_begin = option_end+1;
-        if(std::distance(arg_begin, arg.end()) == 0)
-            throw std::runtime_error("argument length for option \'" + option + "\' is zero");
-        handler.parse(strv_t{arg_begin, arg.end()});
+        if(!has_eq_sign) throw std::runtime_error("option '"+str_t{option}+"' must have an argument");
+        auto arg_beg = option_end+1; // skip '='
+        strv_t op_arg{arg_beg, arg->end()};
+        if(op_arg.empty())
+            throw std::runtime_error("argument length for option '"+str_t{option}+"' is zero");
+        handler.parse(op_arg);
     }
 };
 
