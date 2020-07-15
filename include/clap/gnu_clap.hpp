@@ -1,38 +1,34 @@
 #include "posix_clap.hpp"
 
-namespace clap {
+namespace gnu {
 
 template<class CharT>
-struct basic_gnu_clap : protected basic_posix_clap<CharT> {
-    using this_t = basic_gnu_clap<CharT>;
-    using typename basic_posix_clap<CharT>::str_t;
-    using typename basic_posix_clap<CharT>::strv_t;
-    using typename basic_posix_clap<CharT>::handler_t;
+struct basic_clap : protected posix::basic_clap<CharT> {
+    using this_t = basic_clap<CharT>;
+    using typename posix::basic_clap<CharT>::str_t;
+    using typename posix::basic_clap<CharT>::strv_t;
+    using typename posix::basic_clap<CharT>::handler_t;
 
     std::map<strv_t, handler_t> handlers;
 
-    template<class Handler>
-    this_t option(strv_t long_name, Handler handler) {
+    this_t option(strv_t long_name, auto handler) {
         handlers.emplace(long_name, handler_t{handler, false});
         return *this;
     }
 
-    template<class Handler>
-    this_t required_option(strv_t long_name, Handler handler) {
+    this_t required_option(strv_t long_name, auto handler) {
         handlers.emplace(long_name, {handler, true});
         return *this;
     }
 
-    template<class Handler>
-    this_t option(CharT name, strv_t long_name, Handler handler) {
-        basic_posix_clap<CharT>::option(name, handler);
+    this_t option(CharT name, strv_t long_name, auto handler) {
+        posix::basic_clap<CharT>::option(name, handler);
         option(long_name, handler);
         return *this;
     }
 
-    template<class Handler>
-    this_t required_option(CharT name, strv_t long_name, Handler handler) {
-        basic_posix_clap<CharT>::required_option(name, handler);
+    this_t required_option(CharT name, strv_t long_name, auto handler) {
+        posix::basic_clap<CharT>::required_option(name, handler);
         required_option(long_name, handler);
         return *this;
     }
@@ -54,7 +50,7 @@ struct basic_gnu_clap : protected basic_posix_clap<CharT> {
             if(first_char == '-') {
                 char second_char = (*cl_arg)[1];
                 if(second_char != '-') {
-                    basic_posix_clap<CharT>::parse_option(begin, cl_arg, end);
+                    posix::basic_clap<CharT>::parse_option(begin, cl_arg, end);
                     continue;
                 }
                 else if(cl_arg->size()>2){
@@ -108,10 +104,10 @@ protected:
     }
 };
 
-using gnu_clap = basic_gnu_clap<char>;
-using gnu_wclap = basic_gnu_clap<wchar_t>;
-using gnu_u8clap = basic_gnu_clap<char8_t>;
-using gnu_u16clap = basic_gnu_clap<char16_t>;
-using gnu_u32clap = basic_gnu_clap<char32_t>;
+using clap = basic_clap<char>;
+using wclap = basic_clap<wchar_t>;
+using u8clap = basic_clap<char8_t>;
+using u16clap = basic_clap<char16_t>;
+using u32clap = basic_clap<char32_t>;
 
 }

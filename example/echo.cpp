@@ -4,10 +4,9 @@
 #include "../include/clap/gnu_clap.hpp"
 
 using namespace std;
-using namespace clap;
 
 void exec(vector<string> args) {
-    gnu_clap parser;
+    gnu::clap parser;
     parser.option('e', "echo", [](string_view v) {
         cout << v << "\n";
     });

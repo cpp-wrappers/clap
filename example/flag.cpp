@@ -9,7 +9,7 @@ using namespace std;
 void exec(vector<string> args) {
     map<char, bool> flags{{'a', false}, {'b', false}, {'c', false}};
 
-    clap::basic_posix_clap<char> parser;
+    posix::clap parser;
 
     for_each(flags.begin(), flags.end(), [&](auto& p){
         parser.flag(p.first, p.second);

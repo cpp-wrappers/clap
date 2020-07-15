@@ -2,11 +2,11 @@
 #include <map>
 #include <functional>
 
-namespace clap {
+namespace posix {
 
 template<class CharT>
-struct basic_posix_clap {
-    using this_t = basic_posix_clap<CharT>;
+struct basic_clap {
+    using this_t = basic_clap<CharT>;
     using str_t = std::basic_string<CharT>;
     using strv_t = std::basic_string_view<CharT>;
     using parse_a_t = std::function<void(strv_t)>;
@@ -42,14 +42,12 @@ protected:
     
 public:
 
-    template<class Handler>
-    this_t option(CharT name, Handler handler) {
+    this_t option(CharT name, auto handler) {
         handlers.emplace(name, handler_t{handler, false});
         return *this;
     }
 
-    template<class Handler>
-    this_t required_option(CharT name, Handler handler) {
+    this_t required_option(CharT name, auto handler) {
         handlers.emplace(name, handler_t{handler, true});
         return *this;
     }
@@ -132,10 +130,10 @@ protected:
     }
 };
 
-using posix_clap = basic_posix_clap<char>;
-using posix_wclap = basic_posix_clap<wchar_t>;
-using posix_u8clap = basic_posix_clap<char8_t>;
-using posix_u16clap = basic_posix_clap<char16_t>;
-using posix_u32clap = basic_posix_clap<char32_t>;
+using clap = basic_clap<char>;
+using wclap = basic_clap<wchar_t>;
+using u8clap = basic_clap<char8_t>;
+using u16clap = basic_clap<char16_t>;
+using u32clap = basic_clap<char32_t>;
 
 }
