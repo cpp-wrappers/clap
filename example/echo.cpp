@@ -7,8 +7,8 @@ using namespace std;
 
 void exec(vector<string> args) {
     gnu::clap parser;
-    parser.required_option('e', "echo", [](string_view v) {
+    parser.option('e').parser([](string_view v) {
         cout << v << "\n";
-    });
-    parser.parse(args.begin(), args.end());
+	});
+	parser.parse(args.begin(), args.end());
 }

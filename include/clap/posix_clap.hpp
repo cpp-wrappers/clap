@@ -6,62 +6,51 @@ namespace posix {
 
 template<class CharT>
 struct basic_clap {
-    using this_t = basic_clap<CharT>;
     using str_t = std::basic_string<CharT>;
     using strv_t = std::basic_string_view<CharT>;
-    using parse_a_t = std::function<void(strv_t)>;
-    using parse_t = std::function<void()>;
-protected:
+	
+	class option_t {
+		std::function<void(strv_t)> m_parser;
+		bool m_has_arg;
+	public:
+		bool has_arg() { return m_has_arg; }
+		auto& parser() { return m_parser; }
 
-    struct handler_t {
-        parse_a_t on_parse;
-        bool has_arg;
+		option_t& parser(std::function<void(strv_t)> p) {
+			m_parser = p;
+			m_has_arg = true;
+			return *this;
+		}
 
-        bool required = false;
-        bool parsed = false;
+		option_t& parser(std::function<void(void)> p) {
+			m_parser = [=](strv_t){ p(); };
+			m_has_arg = false;
+			return *this;
+		}
+	};
 
-        handler_t(
-            parse_a_t parse,
-            bool required
-        )
-        :on_parse{parse},has_arg{true},required{required}{}
 
-        handler_t(
-            parse_t parse,
-            bool required
-        )
-        :on_parse{[=](strv_t){ parse(); }},has_arg{false},required{required}{}
-
-        void parse(strv_t arg) {
-            on_parse(arg);
-            parsed = true;
-        }
-    };
-
-    std::map<CharT, handler_t> handlers;
+    std::map<CharT, option_t> options;
     
-public:
-
-    this_t option(CharT name, auto handler) {
-        handlers.emplace(name, handler_t{handler, false});
-        return *this;
+public:	
+	
+    option_t& option(CharT name) {
+        auto[iter, succes] = options.emplace(name, option_t{});
+        return iter->second;
     }
 
-    this_t required_option(CharT name, auto handler) {
-        handlers.emplace(name, handler_t{handler, true});
-        return *this;
-    }
+	auto& flag(option_t& option, bool& val) {
+		option.parser([&val]() { val = true; });
+		return *this;
+	}
 
-    this_t flag(CharT name, bool& ref) {
-        option(name, [&](){ ref = true; });
-        return *this;
-    }
+	auto& flag(CharT name, bool& val) { return flag(option(name), val); }
 
-    template<class It>
+    template<std::input_iterator It>
     void parse(
         const It begin,
         const It end,
-        std::function<void(const It, It&, const It)> operands_handler = [](const It, It&, const It){}
+        std::function<void(const It, It&, const It)> operand_parser = {}
     ) {
         It arg = begin;
         while(arg != end) {
@@ -71,7 +60,7 @@ public:
 
             if(second_char != '-') {
                 It prev = arg;
-                parse_option(begin, arg, end);
+                parse_one_hyphen_arg(begin, arg, end);
                 if(prev == arg)
                     break;
             }
@@ -81,25 +70,14 @@ public:
             }
         }
 
-        while(arg != end) 
-            parse_operand(begin, arg, end, operands_handler);
-
-        on_parse_end();
-    }
+        while(arg != end)
+            parse_operand(begin, arg, end, operand_parser);
+	}
 
 protected:
-
-    void on_parse_end() {
-        for(auto& [name, h] : handlers) {
-            if(h.required && !h.parsed)
-                throw std::runtime_error("option \'"+str_t{1, name}+"\' is required");
-            h.parsed=false;
-        }
-    }
-
-    handler_t* find(CharT name) {
-        auto pair = handlers.find(name);
-        return pair == handlers.end() ? nullptr : &(pair->second);
+    option_t* option_by_name(CharT name) {
+        auto name_to_option = options.find(name);
+        return name_to_option == options.end() ? nullptr : &(name_to_option->second);
     }
 
     template<class It>
@@ -107,46 +85,42 @@ protected:
         const It begin,
         It& arg,
         const It end,
-        std::function<void(const It, It&, const It)> operands_handler
+        std::function<void(const It, It&, const It)> operand_parser
     ) {
         It prev = arg;
-        operands_handler(begin, arg, end);
+		if(operand_parser)
+            operand_parser(begin, arg, end);
         if(prev == arg)
-            throw std::runtime_error("operand isn't parsed: "+str_t{*arg});
+            throw std::runtime_error("operands aren't parsed: "+str_t{*arg});
     }
 
     template<class It>
-    void parse_option(const It begin, It& arg_it, const It end) {
+    void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) {
         strv_t arg{*arg_it};
-
-        auto first_ch = arg.begin()+1; // skip '-'
-
-        for(auto ch = first_ch;*ch; ch++) {
-            char name = *ch;
-            auto handler = find(name);
-            if(!handler) {
-                if(ch == first_ch)
+        
+        for(
+            auto first_ch = arg.begin()+1, ch = first_ch;
+            *ch;
+            ch++
+        ) {
+            CharT name = *ch;
+            auto option = option_by_name(name);
+            if(!option) {
+                if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
                 else throw std::runtime_error("undefined option: "+str_t{1, name});
             }
 
-            if(!handler->has_arg) {
-                handler->parse({});
+            if(!option->has_arg()) {
+                option->parser()({});
                 continue;
             }
 
-            ++ch; // to end or option argument beginning
-            bool next_arg = ch == arg.end();
-
-            if(next_arg) {
-                if(++arg_it==end)
-                    throw std::runtime_error("argument is required for option '"+str_t{1, name}+"'");
-                arg = *arg_it;
-                ch = arg.begin();
+            if(++ch == arg.end()) {
+                if(++arg_it==end) throw std::runtime_error("argument is required for option '"+str_t{1, name}+"'");
+                option->parser()(*arg_it);
             }
-
-            handler->parse({ch});
-
+            else option->parser()(strv_t{ch, arg.end()});
             break;
         }
 

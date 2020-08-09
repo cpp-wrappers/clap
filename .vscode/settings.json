@@ -78,6 +78,7 @@
         "locale": "cpp",
         "queue": "cpp",
         "stack": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "__functional_03": "cpp"
     }
 }
