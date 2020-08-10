@@ -4,16 +4,16 @@ namespace gnu {
 
 template<class CharT>
 struct basic_clap : protected posix::basic_clap<CharT> {
+protected:
     using strv_t = std::basic_string_view<CharT>;
     using str_t = std::basic_string<CharT>;
 	using base_t = posix::basic_clap<CharT>;
 
-    using base_t::parse_operand;
 	using option_t = typename base_t::option_t;
 
     std::map<str_t, option_t> options;
     std::map<str_t, CharT> long_to_short_names;
-	
+public:
 	using base_t::option;
 
 	auto option(strv_t long_name, auto parser) {
@@ -32,12 +32,14 @@ struct basic_clap : protected posix::basic_clap<CharT> {
 
 	auto& option(strv_t long_name, str_t& str) { return option(long_name, base_t::option_parser(str)); }
 	auto& option(CharT name, strv_t long_name, str_t& str) { return option(name, long_name, base_t::option_parser(str)); }
+	
+	using base_t::parse_operand;
 
-    template<std::input_iterator It>
+    template<posix::iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,
         const It end,
-        std::function<void(const It, It&, const It)> operand_parser = [](const It, It&, const It){}
+       	std::function<void(const It, It&, const It)> operand_parser = {}
     ) {
         It arg = begin;
         while(arg != end) {

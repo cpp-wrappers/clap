@@ -4,6 +4,11 @@
 
 namespace posix {
 
+template<class It, class CharT>
+concept iterator_value_convertible_to_string_view =
+	std::input_iterator<It> &&
+	std::convertible_to<typename std::iterator_traits<It>::value_type, std::basic_string_view<CharT>>;
+
 template<class CharT>
 struct basic_clap {
     using str_t = std::basic_string<CharT>;
@@ -23,9 +28,10 @@ struct basic_clap {
 		:m_parser{[=](strv_t){ p(); }}, m_has_arg{false} {}
 	};
 
-
+protected:
     std::map<CharT, option_t> options;
-    
+    auto option_parser(str_t& str) { return [&str](strv_t arg){ str = arg; }; }
+	auto option_parser(bool& val) { return [&val](){ val = true; }; }
 public:	
 	
     auto& option(CharT name, auto parser) {
@@ -33,13 +39,10 @@ public:
         return *this;
     }
 	
-	auto option_parser(str_t& str) { return [&str](strv_t arg){ str = arg; }; }
-	auto option_parser(bool& val) { return [&val](){ val = true; }; }
-
 	auto& flag(CharT name, bool& val) { return option(name, option_parser(val)); }
 	auto& option(CharT name, str_t& str) { return option(name, option_parser(str)); }
-
-    template<std::input_iterator It>
+	
+	template<iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,
         const It end,
