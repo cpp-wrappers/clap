@@ -6,31 +6,32 @@ template<class CharT>
 struct basic_clap : protected posix::basic_clap<CharT> {
     using strv_t = std::basic_string_view<CharT>;
     using str_t = std::basic_string<CharT>;
+	using base_t = posix::basic_clap<CharT>;
 
-    using posix::basic_clap<CharT>::parse_operand;
-	using option_t = typename posix::basic_clap<CharT>::option_t;
+    using base_t::parse_operand;
+	using option_t = typename base_t::option_t;
 
     std::map<str_t, option_t> options;
     std::map<str_t, CharT> long_to_short_names;
 	
-	using posix::basic_clap<CharT>::option;
+	using base_t::option;
 
-	option_t& option(strv_t long_name) {
-        auto [iter, success] = options.emplace(long_name, option_t{});
-		return iter->second;
+	auto option(strv_t long_name, auto parser) {
+        options.emplace(long_name, option_t{parser});
+		return *this;
     }
 
-    option_t& option(CharT name, strv_t long_name) {
-        option_t& o = posix::basic_clap<CharT>::option(name);
+    auto option(CharT name, strv_t long_name, auto parser) {
+        base_t::option(name, parser);
         long_to_short_names.emplace(long_name, name);
-        return o;
+        return *this;
     }
 
-	using posix::basic_clap<CharT>::flag;
+	auto& flag(strv_t long_name, bool& val) { return option(long_name, base_t::option_parser(val)); }
+	auto& flag(CharT name, strv_t long_name, bool& val) { return option(name, long_name, base_t::option_parser(val)); }
 
-	auto flag(strv_t long_name, bool& ref) {
-		return posix::basic_clap<CharT>::flag(option(long_name), ref);
-    }
+	auto& option(strv_t long_name, str_t& str) { return option(long_name, base_t::option_parser(str)); }
+	auto& option(CharT name, strv_t long_name, str_t& str) { return option(name, long_name, base_t::option_parser(str)); }
 
     template<std::input_iterator It>
     void parse(
@@ -46,7 +47,7 @@ struct basic_clap : protected posix::basic_clap<CharT> {
                 It prev = arg;
 
                 if(second_char != '-') 
-                    posix::basic_clap<CharT>::parse_one_hyphen_arg(begin, arg, end);
+                    base_t::parse_one_hyphen_arg(begin, arg, end);
                 else if( (*arg)[2] )
                     parse_two_hyphen_arg(begin, arg, end);
                 else
@@ -67,7 +68,7 @@ protected:
             auto long_to_short_name = long_to_short_names.find(str_t{name});
             if(long_to_short_name == long_to_short_names.end())
                 return nullptr;
-            return posix::basic_clap<CharT>::option_by_name(long_to_short_name->second);
+            return base_t::option_by_name(long_to_short_name->second);
         }
         return &(hame_to_option->second);
     }

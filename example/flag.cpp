@@ -11,13 +11,12 @@ void exec(vector<string> args) {
 
     posix::clap parser;
 
-    for_each(flags.begin(), flags.end(), [&](auto& p){
-        parser.flag(p.first, p.second);
-    });
+    for(auto& name_to_value : flags)
+        parser.flag(name_to_value.first, name_to_value.second);
+	
 
     parser.parse(args.begin(), args.end());
     
-    for_each(flags.begin(), flags.end(), [&](auto& p){
-        cout << p.first << ": " << p.second << "\n";
-    });
+    for(auto& name_to_value : flags) 
+        cout << name_to_value.first << ": " << name_to_value.second << "\n";
 }

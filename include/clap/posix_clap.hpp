@@ -10,23 +10,17 @@ struct basic_clap {
     using strv_t = std::basic_string_view<CharT>;
 	
 	class option_t {
-		std::function<void(strv_t)> m_parser;
-		bool m_has_arg;
+		const std::function<void(strv_t)> m_parser;
+		const bool m_has_arg;
 	public:
-		bool has_arg() { return m_has_arg; }
-		auto& parser() { return m_parser; }
+		bool has_arg() const { return m_has_arg; }
+		auto& parser() const { return m_parser; }
 
-		option_t& parser(std::function<void(strv_t)> p) {
-			m_parser = p;
-			m_has_arg = true;
-			return *this;
-		}
+		option_t(std::function<void(strv_t)> p)
+		:m_parser{p}, m_has_arg{true} {}
 
-		option_t& parser(std::function<void(void)> p) {
-			m_parser = [=](strv_t){ p(); };
-			m_has_arg = false;
-			return *this;
-		}
+		option_t(std::function<void(void)> p)
+		:m_parser{[=](strv_t){ p(); }}, m_has_arg{false} {}
 	};
 
 
@@ -34,17 +28,16 @@ struct basic_clap {
     
 public:	
 	
-    option_t& option(CharT name) {
-        auto[iter, succes] = options.emplace(name, option_t{});
-        return iter->second;
+    auto& option(CharT name, auto parser) {
+        options.emplace(name, option_t{parser});
+        return *this;
     }
+	
+	auto option_parser(str_t& str) { return [&str](strv_t arg){ str = arg; }; }
+	auto option_parser(bool& val) { return [&val](){ val = true; }; }
 
-	auto& flag(option_t& option, bool& val) {
-		option.parser([&val]() { val = true; });
-		return *this;
-	}
-
-	auto& flag(CharT name, bool& val) { return flag(option(name), val); }
+	auto& flag(CharT name, bool& val) { return option(name, option_parser(val)); }
+	auto& option(CharT name, str_t& str) { return option(name, option_parser(str)); }
 
     template<std::input_iterator It>
     void parse(
