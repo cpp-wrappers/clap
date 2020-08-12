@@ -16,12 +16,12 @@ protected:
 public:
 	using base_t::option;
 
-	auto option(strv_t long_name, auto parser) {
+	auto& option(strv_t long_name, auto parser) {
         options.emplace(long_name, option_t{parser});
 		return *this;
     }
 
-    auto option(CharT name, strv_t long_name, auto parser) {
+    auto& option(CharT name, strv_t long_name, auto parser) {
         base_t::option(name, parser);
         long_to_short_names.emplace(long_name, name);
         return *this;
