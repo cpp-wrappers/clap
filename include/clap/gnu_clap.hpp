@@ -35,6 +35,14 @@ public:
 	
 	using base_t::parse_operand;
 
+    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    void parse(
+        const R& range,
+        std::function<void(const It, It&, const It)> operand_parser = {}
+    ) {
+        parse(range.begin(), range.end(), operand_parser);
+    }
+
     template<posix::iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,

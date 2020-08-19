@@ -1,13 +1,15 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <iterator>
+#include <ranges>
 
 namespace posix {
 
 template<class It, class CharT>
 concept iterator_value_convertible_to_string_view =
 	std::input_iterator<It> &&
-	std::convertible_to<typename std::iterator_traits<It>::value_type, std::basic_string_view<CharT>>;
+	std::convertible_to<std::iter_value_t<It>, std::basic_string_view<CharT>>;
 
 template<class CharT>
 struct basic_clap {
@@ -42,6 +44,14 @@ public:
 	auto& flag(CharT name, bool& val) { return option(name, option_parser(val)); }
 	auto& option(CharT name, str_t& str) { return option(name, option_parser(str)); }
 	
+    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    void parse(
+        const R& range,
+        std::function<void(const It, It&, const It)> operand_parser = {}
+    ) {
+        parse(range.begin(), range.end(), operand_parser);
+    }
+
 	template<iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,
