@@ -10,5 +10,5 @@ void exec(vector<string> args) {
     parser.option('e', "echo", [](string_view v) {
         cout << v << "\n";
 	});
-	parser.parse(args.begin(), args.end());
+	parser.parse(args);
 }

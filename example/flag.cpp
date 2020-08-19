@@ -15,7 +15,7 @@ void exec(vector<string> args) {
         parser.flag(name_to_value.first, name_to_value.second);
 	
 
-    parser.parse(args.begin(), args.end());
+    parser.parse(args);
     
     for(auto& name_to_value : flags) 
         cout << name_to_value.first << ": " << name_to_value.second << "\n";
