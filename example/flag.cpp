@@ -14,7 +14,6 @@ void exec(vector<string> args) {
     for(auto& name_to_value : flags)
         parser.flag(name_to_value.first, name_to_value.second);
 	
-
     parser.parse(args);
     
     for(auto& name_to_value : flags) 

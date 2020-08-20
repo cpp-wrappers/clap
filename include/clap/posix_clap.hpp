@@ -3,6 +3,7 @@
 #include <functional>
 #include <iterator>
 #include <ranges>
+#include <sstream>
 
 namespace posix {
 
@@ -32,8 +33,8 @@ struct basic_clap {
 
 protected:
     std::map<CharT, option_t> options;
-    auto option_parser(str_t& str) { return [&str](strv_t arg){ str = arg; }; }
-	auto option_parser(bool& val) { return [&val](){ val = true; }; }
+    auto value_parser(auto& val) { return [&val](strv_t arg) {std::istringstream{str_t{arg}/*sorry for that*/} >> val; }; }
+	auto flag_parser(bool& val) { return [&val](){ val = true; }; }
 public:	
 	
     auto& option(CharT name, auto parser) {
@@ -41,8 +42,8 @@ public:
         return *this;
     }
 	
-	auto& flag(CharT name, bool& val) { return option(name, option_parser(val)); }
-	auto& option(CharT name, str_t& str) { return option(name, option_parser(str)); }
+	auto& flag(CharT name, bool& val) { return option(name, flag_parser(val)); }
+	auto& value(CharT name, auto& val) { return option(name, value_parser(val)); }
 	
     template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
     void parse(

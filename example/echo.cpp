@@ -6,9 +6,10 @@
 using namespace std;
 
 void exec(vector<string> args) {
-    gnu::clap parser;
-    parser.option('e', "echo", [](string_view v) {
-        cout << v << "\n";
-	});
-	parser.parse(args);
+    std::string echo;
+    gnu::clap{}
+        .value('e', "echo", echo)
+        .parse(args);
+
+    cout << echo << "\n";
 }

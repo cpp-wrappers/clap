@@ -27,11 +27,11 @@ public:
         return *this;
     }
 
-	auto& flag(strv_t long_name, bool& val) { return option(long_name, base_t::option_parser(val)); }
-	auto& flag(CharT name, strv_t long_name, bool& val) { return option(name, long_name, base_t::option_parser(val)); }
+	auto& flag(strv_t long_name, bool& val) { return option(long_name, base_t::flag_parser(val)); }
+	auto& flag(CharT name, strv_t long_name, bool& val) { return option(name, long_name, base_t::flag_parser(val)); }
 
-	auto& option(strv_t long_name, str_t& str) { return option(long_name, base_t::option_parser(str)); }
-	auto& option(CharT name, strv_t long_name, str_t& str) { return option(name, long_name, base_t::option_parser(str)); }
+	auto& value(strv_t long_name, auto& val) { return option(long_name, base_t::value_parser(val)); }
+	auto& value(CharT name, strv_t long_name, auto& val) { return option(name, long_name, base_t::value_parser(val)); }
 	
 	using base_t::parse_operand;
 
