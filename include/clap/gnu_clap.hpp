@@ -11,8 +11,8 @@ protected:
 
 	using option_t = typename base_t::option_t;
 
-    std::map<str_t, option_t> options;
-    std::map<str_t, CharT> long_to_short_names;
+    std::map<str_t, const option_t> options;
+    std::map<str_t, const CharT> long_to_short_names;
 public:
 	using base_t::option;
 
@@ -39,7 +39,7 @@ public:
     void parse(
         R& range,
         std::function<void(const It, It&, const It)> operand_parser = {}
-    ) {
+    ) const {
         parse(range.begin(), range.end(), operand_parser);
     }
 
@@ -48,7 +48,7 @@ public:
         const It begin,
         const It end,
        	std::function<void(const It, It&, const It)> operand_parser = {}
-    ) {
+    ) const {
         It arg = begin;
         while(arg != end) {
             char first_char = (*arg)[0];
@@ -60,11 +60,9 @@ public:
                     base_t::parse_one_hyphen_arg(begin, arg, end);
                 else if( (*arg)[2] )
                     parse_two_hyphen_arg(begin, arg, end);
-                else
-                    if(++arg == end) break; // skip '--'
+                else if(++arg == end) break; // skip '--'
 
-                if(prev != arg)
-                        continue;
+                if(prev != arg) continue;
             }
 
             parse_operand(begin, arg, end, operand_parser);
@@ -72,7 +70,7 @@ public:
     }
 
 protected:
-    option_t* option_by_name(strv_t name) {
+    const option_t* option_by_name(strv_t name) const {
         auto hame_to_option = options.find(str_t{name});
         if(hame_to_option == options.end()) {
             auto long_to_short_name = long_to_short_names.find(str_t{name});
@@ -84,7 +82,7 @@ protected:
     }
 
     template<class It>
-    void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) {
+    void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) const {
         strv_t arg{*arg_it};
 
         auto option_name_beg_pos = 2; // skip '--'

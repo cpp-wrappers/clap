@@ -49,7 +49,7 @@ public:
     void parse(
         R& range,
         std::function<void(const It, It&, const It)> operand_parser = {}
-    ) {
+    ) const {
         parse(range.begin(), range.end(), operand_parser);
     }
 
@@ -58,7 +58,7 @@ public:
         const It begin,
         const It end,
         std::function<void(const It, It&, const It)> operand_parser = {}
-    ) {
+    ) const {
         It arg = begin;
         while(arg != end) {
             auto first_char = (*arg)[0];
@@ -82,7 +82,7 @@ public:
 	}
 
 protected:
-    option_t* option_by_name(CharT name) {
+    const option_t* option_by_name(CharT name) const {
         auto name_to_option = options.find(name);
         return name_to_option == options.end() ? nullptr : &(name_to_option->second);
     }
@@ -93,7 +93,7 @@ protected:
         It& arg,
         const It end,
         std::function<void(const It, It&, const It)> operand_parser
-    ) {
+    ) const {
         It prev = arg;
 		if(operand_parser)
             operand_parser(begin, arg, end);
@@ -102,7 +102,7 @@ protected:
     }
 
     template<class It>
-    void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) {
+    void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
         strv_t arg{*arg_it};
         
         for(
