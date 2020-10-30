@@ -1,40 +1,43 @@
+#pragma once
+
 #include <string>
 #include <map>
 #include <functional>
 #include <iterator>
 #include <ranges>
 #include <sstream>
+#include <variant>
+#include "parser.hpp"
+#include "iterator_util.hpp"
+
+
+namespace clap {
 
 namespace posix {
 
-template<class It, class CharT>
-concept iterator_value_convertible_to_string_view =
-	std::input_iterator<It> &&
-	std::convertible_to<std::iter_value_t<It>, std::basic_string_view<CharT>>;
-
 template<class CharT>
 struct basic_clap {
-    using str_t = std::basic_string<CharT>;
-    using strv_t = std::basic_string_view<CharT>;
+    using string = std::basic_string<CharT>;
+    using string_view = std::basic_string_view<CharT>;
 	
 	class option_t {
-		const std::function<void(strv_t)> m_parser;
-		const bool m_has_arg;
+		const std::variant<clap::parser_with_arg<CharT>, parser_without_arg> m_parser;
 	public:
-		bool has_arg() const { return m_has_arg; }
+		bool has_arg() const {
+            return std::holds_alternative<parser_with_arg<CharT>>(m_parser);
+        }
+
 		auto& parser() const { return m_parser; }
 
-		option_t(std::function<void(strv_t)> p)
-		:m_parser{p}, m_has_arg{true} {}
+		option_t(parser_with_arg<CharT> p)
+		:m_parser{p} {}
 
-		option_t(std::function<void(void)> p)
-		:m_parser{[=](strv_t){ p(); }}, m_has_arg{false} {}
+		option_t(parser_without_arg p)
+		:m_parser{p} {}
 	};
 
 protected:
     std::map<CharT, option_t> options;
-    auto value_parser(auto& val) { return [&val](strv_t arg) {std::istringstream{str_t{arg}/*sorry for that*/} >> val; }; }
-	auto flag_parser(bool& val) { return [&val](){ val = true; }; }
 public:	
 	
     auto& option(CharT name, auto parser) {
@@ -42,8 +45,8 @@ public:
         return *this;
     }
 	
-	auto& flag(CharT name, bool& val) { return option(name, flag_parser(val)); }
-	auto& value(CharT name, auto& val) { return option(name, value_parser(val)); }
+	auto& flag(CharT name, bool& val) { return option(name, clap::flag_parser(val)); }
+	auto& value(CharT name, auto& val) { return option(name, clap::value_parser<CharT>(val)); }
 	
     template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
     void parse(
@@ -98,12 +101,12 @@ protected:
 		if(operand_parser)
             operand_parser(begin, arg, end);
         if(prev == arg)
-            throw std::runtime_error("operands aren't parsed: "+str_t{*arg});
+            throw std::runtime_error("operands aren't parsed: "+string{*arg});
     }
 
     template<class It>
     void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
-        strv_t arg{*arg_it};
+        string_view arg{*arg_it};
         
         for(
             auto first_ch = arg.begin()+1, ch = first_ch;
@@ -111,23 +114,25 @@ protected:
             ch++
         ) {
             CharT name = *ch;
-            auto option = option_by_name(name);
+            const option_t* option = option_by_name(name);
             if(!option) {
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
-                else throw std::runtime_error("undefined option: "+str_t{1, name});
+                else throw std::runtime_error("undefined option: "+string{1, name});
             }
 
             if(!option->has_arg()) {
-                option->parser()({});
+                std::get<parser_without_arg>(option->parser()) ();
                 continue;
             }
 
+            parser_with_arg<CharT> parser = std::get<parser_with_arg<CharT>>(option->parser());
+
             if(++ch == arg.end()) {
-                if(++arg_it==end) throw std::runtime_error("argument is required for option '"+str_t{1, name}+"'");
-                option->parser()(*arg_it);
+                if(++arg_it==end) throw std::runtime_error("argument is required for option '"+string{1, name}+"'");
+                parser(*arg_it);
             }
-            else option->parser()(strv_t{ch, arg.end()});
+            else parser(string_view{ch, arg.end()});
             break;
         }
 
@@ -141,4 +146,10 @@ using u8clap = basic_clap<char8_t>;
 using u16clap = basic_clap<char16_t>;
 using u32clap = basic_clap<char32_t>;
 
+}
+
+}
+
+namespace posix {
+    using namespace clap::posix;
 }

@@ -1,37 +1,43 @@
 #include "posix_clap.hpp"
 
+namespace clap {
+
 namespace gnu {
 
 template<class CharT>
 struct basic_clap : protected posix::basic_clap<CharT> {
 protected:
-    using strv_t = std::basic_string_view<CharT>;
-    using str_t = std::basic_string<CharT>;
+    using string_view = std::basic_string_view<CharT>;
+    using string = std::basic_string<CharT>;
 	using base_t = posix::basic_clap<CharT>;
 
 	using option_t = typename base_t::option_t;
 
-    std::map<str_t, const option_t> options;
-    std::map<str_t, const CharT> long_to_short_names;
+    std::map<string, const option_t> options;
+    std::map<string, const CharT> long_to_short_names;
 public:
 	using base_t::option;
 
-	auto& option(strv_t long_name, auto parser) {
+	auto& option(string_view long_name, auto parser) {
         options.emplace(long_name, option_t{parser});
 		return *this;
     }
 
-    auto& option(CharT name, strv_t long_name, auto parser) {
+    auto& option(CharT name, string_view long_name, auto parser) {
         base_t::option(name, parser);
         long_to_short_names.emplace(long_name, name);
         return *this;
     }
 
-	auto& flag(strv_t long_name, bool& val) { return option(long_name, base_t::flag_parser(val)); }
-	auto& flag(CharT name, strv_t long_name, bool& val) { return option(name, long_name, base_t::flag_parser(val)); }
+	auto& flag(string_view long_name, bool& val) { return option(long_name, clap::flag_parser(val)); }
+	auto& flag(CharT name, string_view long_name, bool& val) { return option(name, long_name, clap::flag_parser(val)); }
 
-	auto& value(strv_t long_name, auto& val) { return option(long_name, base_t::value_parser(val)); }
-	auto& value(CharT name, strv_t long_name, auto& val) { return option(name, long_name, base_t::value_parser(val)); }
+	auto& value(string_view long_name, auto& val) {
+        return option(long_name, clap::value_parser<CharT>(val));
+    }
+	auto& value(CharT name, string_view long_name, auto& val) {
+        return option(name, long_name, clap::value_parser<CharT>(val));
+    }
 	
 	using base_t::parse_operand;
 
@@ -43,7 +49,7 @@ public:
         parse(range.begin(), range.end(), operand_parser);
     }
 
-    template<posix::iterator_value_convertible_to_string_view<CharT> It>
+    template<clap::iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,
         const It end,
@@ -70,10 +76,10 @@ public:
     }
 
 protected:
-    const option_t* option_by_name(strv_t name) const {
-        auto hame_to_option = options.find(str_t{name});
+    const option_t* option_by_name(string_view name) const {
+        auto hame_to_option = options.find(string{name});
         if(hame_to_option == options.end()) {
-            auto long_to_short_name = long_to_short_names.find(str_t{name});
+            auto long_to_short_name = long_to_short_names.find(string{name});
             if(long_to_short_name == long_to_short_names.end())
                 return nullptr;
             return base_t::option_by_name(long_to_short_name->second);
@@ -83,28 +89,28 @@ protected:
 
     template<class It>
     void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) const {
-        strv_t arg{*arg_it};
+        string_view arg{*arg_it};
 
         auto option_name_beg_pos = 2; // skip '--'
         auto option_name_beg = arg.begin()+option_name_beg_pos;
         auto eq_sign_pos = arg.find_first_of('=', option_name_beg_pos);
-        bool has_eq_sign = eq_sign_pos != str_t::npos;
+        bool has_eq_sign = eq_sign_pos != string::npos;
         auto option_name_end = has_eq_sign ? arg.begin()+eq_sign_pos : arg.end() ;
 
-        strv_t option_name{option_name_beg, option_name_end};
+        string_view option_name{option_name_beg, option_name_end};
 
         auto option = option_by_name(option_name);
         if(!option) return;
 
         if(!option->has_arg())
-            option->parser()({});
+            std::get<clap::parser_without_arg>(option->parser()) ();
         else {
-            if(!has_eq_sign) throw std::runtime_error("option '"+str_t{option_name}+"' must have an argument");
+            if(!has_eq_sign) throw std::runtime_error("option '"+string{option_name}+"' must have an argument");
             auto option_arg_beg = arg.begin()+eq_sign_pos+1; // skip '='
-            strv_t option_arg{option_arg_beg, arg.end()};
+            string_view option_arg{option_arg_beg, arg.end()};
             if(option_arg.empty())
-                throw std::runtime_error("argument length for option '"+str_t{option_name}+"' is zero");
-            option->parser()(option_arg);
+                throw std::runtime_error("argument length for option '"+string{option_name}+"' is zero");
+            std::get<clap::parser_with_arg<CharT>>(option->parser()) (option_arg);
         }
 
         ++arg_it;
@@ -117,4 +123,10 @@ using u8clap = basic_clap<char8_t>;
 using u16clap = basic_clap<char16_t>;
 using u32clap = basic_clap<char32_t>;
 
+}
+
+}
+
+namespace gnu {
+    using namespace clap::gnu;
 }
