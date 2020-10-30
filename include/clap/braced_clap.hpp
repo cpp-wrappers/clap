@@ -91,51 +91,52 @@ protected:
         };
 
         while(begin != end) {
-           auto eq_index = str().find('=');
-           // option name, before '='
-           string_view name = str().substr(0, eq_index);
+            auto eq_index = str().find('=');
+            // option name, before '='
+            string_view name = str().substr(0, eq_index);
 
-           auto name_to_option = options.find(string{name});
-           if(name_to_option == options.end()) throw std::runtime_error("can't find option with name '"+string{name}+"'");
-           auto option = name_to_option->second;
+            auto name_to_option = options.find(string{name});
+            if(name_to_option == options.end())
+                throw std::runtime_error("can't find option with name '"+string{name}+"'");
+            auto option = name_to_option->second;
 
-           // skipping to '='
-           if(eq_index == string::npos) {
-               nextWord();
+            // skipping to '='
+            if(eq_index == string::npos) {
+                nextWord();
 
-               if(str().front() != '=')
-                   throw std::runtime_error("expected '=' after '"+string{name}+"'");
-           }
-           else skipOrNextWord(eq_index);
+                if(str().front() != '=')
+                    throw std::runtime_error("expected '=' after '"+string{name}+"'");
+            }
+            else skipOrNextWord(eq_index);
 
-           // skip '='
-           nextChar();
+            // skip '='
+            nextChar();
 
-           // that's closure? diving in.
-           if(str().front() == '{') {
-               // skip '{'
-               nextChar();
-
-               parse_option(begin, end, std::get<braced_arg>(option).options, beginning);
-               // skip '}'
-               nextChar();
-           }
-           else {
-               auto closing_index = str().find('}');
-               auto arg = str().substr(0, closing_index);
-               std::get<parser_with_arg<CharT>>(option) (arg);
-
-               // we have '}' here, skipping it
-               if(closing_index != string::npos) {
-                   skipOrNextWord(closing_index);
-                   return;
-               }
-
-               // we parsed arg, move on
-               nextWord();
-               // yeah, it could be in next word
-               if(str().front() == '}') return;
-           }
+            // that's closure? diving in.
+            if(str().front() == '{') {
+                // skip '{'
+                nextChar();
+ 
+                parse_option(begin, end, std::get<braced_arg>(option).options, beginning);
+                // skip '}'
+                nextChar();
+            }
+            else {
+                auto closing_index = str().find('}');
+                auto arg = str().substr(0, closing_index);
+                std::get<parser_with_arg<CharT>>(option) (arg);
+ 
+                // we have '}' here, skipping it
+                if(closing_index != string::npos) {
+                    skipOrNextWord(closing_index);
+                    return;
+                }
+ 
+                // we parsed arg, move on
+                nextWord();
+                // yeah, it could be in next word
+                if(str().front() == '}') return;
+            }
         }
     }
 
