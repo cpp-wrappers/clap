@@ -30,8 +30,10 @@ struct basic_braced_clap {
         }
     };
 
+protected:
     options_map options;
-    
+public:
+
     auto option(string_view name, parser_with_arg<CharT> parser) {
         options.insert({ string{name}, parser });
         return *this;
@@ -52,6 +54,7 @@ struct basic_braced_clap {
         parse_option(begin, end, options, i);
     }
 
+protected:
     template<iterator_value_convertible_to_string_view<CharT> I>
     static inline void
     parse_option(I& begin, I end, options_map& options, string_index_type& beginning) {
@@ -93,7 +96,7 @@ struct basic_braced_clap {
            string_view name = str().substr(0, eq_index);
 
            auto name_to_option = options.find(string{name});
-           if(name_to_option == options.end()) throw std::runtime_error("can't find option with name '"s+string{name}+"'");
+           if(name_to_option == options.end()) throw std::runtime_error("can't find option with name '"+string{name}+"'");
            auto option = name_to_option->second;
 
            // skipping to '='
@@ -101,7 +104,7 @@ struct basic_braced_clap {
                nextWord();
 
                if(str().front() != '=')
-                   throw std::runtime_error("expected '=' after '"s+string{name}+"'"s);
+                   throw std::runtime_error("expected '=' after '"+string{name}+"'");
            }
            else skipOrNextWord(eq_index);
 
