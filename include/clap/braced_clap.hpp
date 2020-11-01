@@ -58,85 +58,98 @@ protected:
     template<iterator_value_convertible_to_string_view<CharT> I>
     static inline void
     parse_option(I& begin, I end, options_map& options, string_index_type& beginning) {
-        using namespace std::literals::string_literals;
+        using namespace std;
+        using namespace literals::string_literals;
 
-        auto str = [&]() {
-            string_view s{*begin};
-            s = s.substr(beginning);
-            return s;
-        };
+        auto s = [&]() { return string_view{*begin}.substr(beginning); };
+        auto is_end = [&](){ return begin == end; };
 
-        auto nextWord = [&]() {
-            if(begin >= end) throw std::runtime_error("skipped end");
-            begin++;
+        auto nextWord = [&]() -> bool {
+            ++begin;
+            if(is_end()) return false;
             beginning = 0;
+            return true;
         };
 
-        auto nextChar = [&]() {
-            if(str().size() <= 1) nextWord();
-            else beginning++;
-        };
-
-        auto skipOrNextWord = [&](string_index_type chars) {
-            if(chars > str().size())
-                throw std::runtime_error(
+        auto skip = [&](string_index_type chars) {
+            if(chars >= s().size())
+                throw runtime_error {
                     "skipped too many chars ("s +
-                    std::to_string(chars) +
-                    ") for string '"s +
-                     string{str()} +
-                    "'"s
-                );
-            else if (chars == str().size()) nextWord();
+                    to_string(chars) +
+                    ") for string '" +
+                     string{s()} +
+                    "'"
+                };
             else beginning += chars;
         };
 
-        while(begin != end) {
-            auto eq_index = str().find('=');
+        auto nextChar = [&]() -> bool {
+            if(s().size() == 1) return nextWord();
+            else if(s().size() > 1) {
+                skip(1);
+                return true;
+            }
+            else throw runtime_error{"string size is zero"};
+        };
+
+        while(true) {
+            string_index_type closest = string::npos;
+            
+            for(string_index_type index = 0; index < s().size(); index++)
+                if(s()[index] == '=' || s()[index] == '{') {
+                    closest = index;
+                    break;
+                }
+
             // option name, before '='
-            string_view name = str().substr(0, eq_index);
+            string name = string{s().substr(0, closest)};
 
-            auto name_to_option = options.find(string{name});
+            auto name_to_option = options.find(name);
             if(name_to_option == options.end())
-                throw std::runtime_error("can't find option with name '"+string{name}+"'");
-            auto option = name_to_option->second;
+                throw runtime_error{"can't find option '"+name+"'"};
+            auto& option = name_to_option->second;
 
-            // skipping to '='
-            if(eq_index == string::npos) {
-                nextWord();
-
-                if(str().front() != '=')
-                    throw std::runtime_error("expected '=' after '"+string{name}+"'");
+            if(closest == string::npos) {
+                if(!nextWord())
+                    throw runtime_error{"there's no value for option '"+name+"'"};
             }
-            else skipOrNextWord(eq_index);
+            else skip(closest);
 
-            // skip '='
-            nextChar();
+            // '=' or '{'
+            CharT ch = s().front();
 
-            // that's closure? diving in.
-            if(str().front() == '{') {
-                // skip '{'
-                nextChar();
- 
-                parse_option(begin, end, std::get<braced_arg>(option).options, beginning);
-                // skip '}'
-                nextChar();
+            // skip '=' or '{'
+            if(!nextChar())
+                throw runtime_error{"unexpected end after '"+name+" "+ch+"'"};
+
+            if(ch == '{') {
+                parse_option(begin, end, get<braced_arg>(option).options, beginning);
+                if(is_end() || s().front() != '}')
+                    throw runtime_error{
+                        "unexpected end of branced option '"+name+"'"
+                    };
+                if(!nextChar()) return;
             }
-            else {
-                auto closing_index = str().find('}');
-                auto arg = str().substr(0, closing_index);
+            else if(ch == '=') {
+                auto closing_index = s().find('}');
+                auto arg = s().substr(0, closing_index);
+                if(arg.empty()) throw runtime_error{"value of option '"+name+"' is empty"};
                 std::get<parser_with_arg<CharT>>(option) (arg);
  
-                // we have '}' here, skipping it
+                // we have '}' here. skipping and returning to parent
                 if(closing_index != string::npos) {
-                    skipOrNextWord(closing_index);
+                    skip(closing_index);
                     return;
                 }
  
-                // we parsed arg, move on
-                nextWord();
-                // yeah, it could be in next word
-                if(str().front() == '}') return;
+                // we parsed whole word as option argument, grab next
+                if(!nextWord()) return;
+                // it could be at the beginning of next word
+                if(s().front() == '}') return;
             }
+            else throw runtime_error {
+                "undefined character '"s+ch+"' after option name '"+name+"'"
+            };
         }
     }
 

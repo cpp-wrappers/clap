@@ -7,4 +7,6 @@
     echo "installing..." \
     & \
     cp -rv include $1 \
+    &
+    cp -v compile_flags.txt $1/include/clap \
 )

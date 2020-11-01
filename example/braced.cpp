@@ -7,9 +7,9 @@ using namespace std;
 using namespace literals;
 
 void exec(vector<string> args) {
-    std::string h00;
-    std::string h01;
-    std::string h1;
+    std::string h00 = "null";
+    std::string h01 = "null";
+    std::string h1 = "null";
 
     clap::braced_clap{}
         .option(
@@ -26,6 +26,9 @@ void exec(vector<string> args) {
             }
         )
         .parse(args);
+    /*clap::braced_clap{}
+        .option("a", clap::value_parser<char>(h01))
+        .parse(args);*/
 
     cout << h00 << "\n";
     cout << h01 << "\n";
