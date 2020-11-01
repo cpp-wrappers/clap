@@ -20,7 +20,7 @@ struct basic_braced_clap {
     using string_index_type = typename string::size_type;
     class braced_arg;
     using option_t = std::variant<parser_with_arg<CharT>, braced_arg>;
-    using options_map = std::map<string, option_t>;
+    using options_map = std::map<string, option_t, std::less<>>;
 
     struct braced_arg {
         options_map options;
@@ -105,17 +105,17 @@ protected:
                 }
 
             // option name, before '='
-            string name = string{s().substr(0, closest_index)};
+            string_view name = s().substr(0, closest_index);
             if(name.empty()) throw runtime_error { "option name is empty" };
 
             auto name_to_option = options.find(name);
             if(name_to_option == options.end())
-                throw runtime_error{"can't find option '"+name+"'"};
+                throw runtime_error{"can't find option '"+string{name}+"'"};
             auto& option = name_to_option->second;
 
             if(closest_index == string::npos) {
                 if(!nextWord())
-                    throw runtime_error{"there's no value for option '"+name+"'"};
+                    throw runtime_error{"there's no value for option '"+string{name}+"'"};
             }
             else skip(closest_index);
 
@@ -124,20 +124,20 @@ protected:
 
             // skip '=' or '{'
             if(!nextChar())
-                throw runtime_error{"unexpected end after '"+name+" "+ch+"'"};
+                throw runtime_error{"unexpected end after '"+string{name}+" "+ch+"'"};
 
             if(ch == '{') {
                 parse_option(begin, end, get<braced_arg>(option).options, beginning);
                 if(is_end() || s().front() != '}')
                     throw runtime_error{
-                        "unexpected end of branced option '"+name+"'"
+                        "unexpected end of branced option '"+string{name}+"'"
                     };
                 if(!nextChar()) return;
             }
             else if(ch == '=') {
                 auto closing_index = s().find('}');
                 auto arg = s().substr(0, closing_index);
-                if(arg.empty()) throw runtime_error{"value of option '"+name+"' is empty"};
+                if(arg.empty()) throw runtime_error{"value of option '"+string{name}+"' is empty"};
                 std::get<parser_with_arg<CharT>>(option) (arg);
  
                 // we have '}' here. skipping and returning to parent
@@ -151,7 +151,7 @@ protected:
                 // it could be at the beginning of next word
             }
             else throw runtime_error {
-                "undefined character '"s+ch+"' after option name '"+name+"'"
+                "undefined character '"s+ch+"' after option name '"+string{name}+"'"
             };
         }
     }

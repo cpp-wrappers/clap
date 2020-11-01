@@ -106,6 +106,7 @@ protected:
 
     template<class It>
     void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
+        using namespace std;
         using namespace std::literals;
         string_view arg{*arg_it};
         
@@ -119,18 +120,18 @@ protected:
             if(!option) {
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
-                else throw std::runtime_error("undefined option: '"s+name+"'"s);
+                else throw runtime_error{"undefined option: '"s+name+"'"s};
             }
 
             if(!option->has_arg()) {
-                std::get<parser_without_arg>(option->parser()) ();
+                get<parser_without_arg>(option->parser()) ();
                 continue;
             }
 
-            parser_with_arg<CharT> parser = std::get<parser_with_arg<CharT>>(option->parser());
+            parser_with_arg<CharT> parser = get<parser_with_arg<CharT>>(option->parser());
 
             if(++ch == arg.end()) {
-                if(++arg_it==end) throw std::runtime_error("argument is required for option '"s+name+"'"s);
+                if(++arg_it==end) throw runtime_error{"argument is required for option '"s+name+"'"s};
                 parser(*arg_it);
             }
             else parser(string_view{ch, arg.end()});

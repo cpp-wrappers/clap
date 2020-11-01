@@ -1,4 +1,5 @@
 #include "posix_clap.hpp"
+#include <functional>
 
 namespace clap {
 
@@ -13,8 +14,8 @@ protected:
 
 	using option_t = typename base_t::option_t;
 
-    std::map<string, const option_t> options;
-    std::map<string, const CharT> long_to_short_names;
+    std::map<string, const option_t, std::less<>> options;
+    std::map<string, const CharT, std::less<>> long_to_short_names;
 public:
 	using base_t::option;
 
@@ -29,14 +30,14 @@ public:
         return *this;
     }
 
-	auto& flag(string_view long_name, bool& val) { return option(long_name, clap::flag_parser(val)); }
-	auto& flag(CharT name, string_view long_name, bool& val) { return option(name, long_name, clap::flag_parser(val)); }
+	auto& flag(string_view long_name, bool& val) { return option(long_name, flag_parser(val)); }
+	auto& flag(CharT name, string_view long_name, bool& val) { return option(name, long_name, flag_parser(val)); }
 
 	auto& value(string_view long_name, auto& val) {
-        return option(long_name, clap::value_parser<CharT>(val));
+        return option(long_name, value_parser<CharT>(val));
     }
 	auto& value(CharT name, string_view long_name, auto& val) {
-        return option(name, long_name, clap::value_parser<CharT>(val));
+        return option(name, long_name, value_parser<CharT>(val));
     }
 	
 	using base_t::parse_operand;
@@ -49,7 +50,7 @@ public:
         parse(range.begin(), range.end(), operand_parser);
     }
 
-    template<clap::iterator_value_convertible_to_string_view<CharT> It>
+    template<iterator_value_convertible_to_string_view<CharT> It>
     void parse(
         const It begin,
         const It end,
@@ -77,9 +78,9 @@ public:
 
 protected:
     const option_t* option_by_name(string_view name) const {
-        auto hame_to_option = options.find(string{name});
+        auto hame_to_option = options.find(name);
         if(hame_to_option == options.end()) {
-            auto long_to_short_name = long_to_short_names.find(string{name});
+            auto long_to_short_name = long_to_short_names.find(name);
             if(long_to_short_name == long_to_short_names.end())
                 return nullptr;
             return base_t::option_by_name(long_to_short_name->second);
@@ -89,6 +90,7 @@ protected:
 
     template<class It>
     void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) const {
+        using namespace std;
         string_view arg{*arg_it};
 
         auto option_name_beg_pos = 2; // skip '--'
@@ -103,14 +105,14 @@ protected:
         if(!option) return;
 
         if(!option->has_arg())
-            std::get<clap::parser_without_arg>(option->parser()) ();
+            get<parser_without_arg>(option->parser()) ();
         else {
-            if(!has_eq_sign) throw std::runtime_error("option '"+string{option_name}+"' must have an argument");
+            if(!has_eq_sign) throw runtime_error{"option '"+string{option_name}+"' must have an argument"};
             auto option_arg_beg = arg.begin()+eq_sign_pos+1; // skip '='
             string_view option_arg{option_arg_beg, arg.end()};
             if(option_arg.empty())
-                throw std::runtime_error("argument length for option '"+string{option_name}+"' is zero");
-            std::get<clap::parser_with_arg<CharT>>(option->parser()) (option_arg);
+                throw runtime_error{"argument length for option '"+string{option_name}+"' is zero"};
+            get<parser_with_arg<CharT>>(option->parser()) (option_arg);
         }
 
         ++arg_it;
