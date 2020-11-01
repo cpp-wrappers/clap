@@ -52,6 +52,7 @@ public:
     void parse(I begin, I end) {
         string_index_type i = 0;
         parse_option(begin, end, options, i);
+        if(begin != end) throw std::runtime_error{"unexpected '}'"};
     }
 
 protected:
@@ -93,27 +94,30 @@ protected:
         };
 
         while(true) {
-            string_index_type closest = string::npos;
+            if(s().front() == '}') return;
+
+            string_index_type closest_index = string::npos;
             
             for(string_index_type index = 0; index < s().size(); index++)
                 if(s()[index] == '=' || s()[index] == '{') {
-                    closest = index;
+                    closest_index = index;
                     break;
                 }
 
             // option name, before '='
-            string name = string{s().substr(0, closest)};
+            string name = string{s().substr(0, closest_index)};
+            if(name.empty()) throw runtime_error { "option name is empty" };
 
             auto name_to_option = options.find(name);
             if(name_to_option == options.end())
                 throw runtime_error{"can't find option '"+name+"'"};
             auto& option = name_to_option->second;
 
-            if(closest == string::npos) {
+            if(closest_index == string::npos) {
                 if(!nextWord())
                     throw runtime_error{"there's no value for option '"+name+"'"};
             }
-            else skip(closest);
+            else skip(closest_index);
 
             // '=' or '{'
             CharT ch = s().front();
@@ -145,7 +149,6 @@ protected:
                 // we parsed whole word as option argument, grab next
                 if(!nextWord()) return;
                 // it could be at the beginning of next word
-                if(s().front() == '}') return;
             }
             else throw runtime_error {
                 "undefined character '"s+ch+"' after option name '"+name+"'"

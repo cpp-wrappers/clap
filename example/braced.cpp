@@ -22,13 +22,14 @@ void exec(vector<string> args) {
                         { "h01", clap::value_parser<char>(h01) }
                     },
                 },
+                {
+                    "empty",
+                    clap::braced_clap::braced_arg {},
+                },
                 { "h1", clap::value_parser<char>(h1) }
             }
         )
         .parse(args);
-    /*clap::braced_clap{}
-        .option("a", clap::value_parser<char>(h01))
-        .parse(args);*/
 
     cout << h00 << "\n";
     cout << h01 << "\n";
