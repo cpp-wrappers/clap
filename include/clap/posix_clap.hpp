@@ -101,7 +101,7 @@ protected:
 		if(operand_parser)
             operand_parser(begin, arg, end);
         if(prev == arg)
-            throw std::runtime_error("operands aren't parsed: "+string{*arg});
+            throw std::runtime_error{"operands aren't parsed: "+string{*arg}};
     }
 
     template<class It>
