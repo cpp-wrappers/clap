@@ -1,5 +1,8 @@
+#pragma once
+
 #include "posix_clap.hpp"
 #include <functional>
+#include <iterator>
 
 namespace clap {
 
@@ -38,6 +41,11 @@ public:
     }
 	auto& value(CharT name, string_view long_name, auto& val) {
         return option(name, long_name, value_parser<CharT>(val));
+    }
+
+    template<class T>
+    auto& values(CharT name, string_view long_name, auto output_it) {
+        return option(name, long_name, values_parser<CharT, T>(output_it));
     }
 	
 	using base_t::parse_operand;
