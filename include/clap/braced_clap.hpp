@@ -115,7 +115,7 @@ protected:
         auto skip = [&](string_index_type chars) {
             if(chars >= s().size())
                 throw runtime_error {
-                    "skipped too many chars ("s +
+                    "skipped too many characters ("s +
                     to_string(chars) +
                     ") for string '" +
                      string{s()} +

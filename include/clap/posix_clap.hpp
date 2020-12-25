@@ -1,35 +1,43 @@
 #pragma once
 
+#include <bits/iterator_concepts.h>
+#include <cwchar>
+#include <cxx_util/encoding.hpp>
+#include <cxx_util/string.hpp>
+#include <locale>
+#include <stdexcept>
 #include <string>
 #include <map>
 #include <functional>
 #include <iterator>
 #include <ranges>
 #include <sstream>
+#include <string_view>
 #include <variant>
+#include <wchar.h>
 #include "parser.hpp"
-#include "iterator_util.hpp"
-
+#include "cxx_util/multibyte_string.hpp"
 
 namespace clap {
 
 namespace posix {
 
-template<class CharT>
+template<class Encoding>
 struct basic_clap {
-    using string = std::basic_string<CharT>;
-    using string_view = std::basic_string_view<CharT>;
+    using char_type = typename Encoding::char_type;
+    using string = std::basic_string<char_type>;
+    using string_view = std::basic_string_view<char_type>;
 	
 	class option_t {
-		const std::variant<clap::parser_with_arg<CharT>, parser_without_arg> m_parser;
+		const std::variant<clap::parser_with_arg<Encoding>, parser_without_arg> m_parser;
 	public:
 		bool has_arg() const {
-            return std::holds_alternative<parser_with_arg<CharT>>(m_parser);
+            return std::holds_alternative<parser_with_arg<Encoding>>(m_parser);
         }
 
 		auto& parser() const { return m_parser; }
 
-		option_t(parser_with_arg<CharT> p)
+		option_t(parser_with_arg<Encoding> p)
 		:m_parser{p} {}
 
 		option_t(parser_without_arg p)
@@ -37,26 +45,33 @@ struct basic_clap {
 	};
 
 protected:
-    std::map<CharT, option_t> options;
-public:	
-	
-    auto& option(CharT name, auto parser) {
-        options.emplace(name, option_t{parser});
+    std::map<util::mb::character<Encoding>, option_t> options;
+public:
+    auto& option(const util::mb::character<Encoding>& name, auto parser) {;
+        options.emplace(std::move(name), option_t{parser});
         return *this;
     }
 	
-	auto& flag(CharT name, bool& val) { return option(name, clap::flag_parser(val)); }
-	auto& value(CharT name, auto& val) { return option(name, clap::value_parser<CharT>(val)); }
-	
-    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+	auto& flag(auto name, bool& val) { return option(name, clap::flag_parser(val)); }
+	auto& value(auto name, auto& val) { return option(name, clap::value_parser<Encoding>(val)); }
+
+    template<
+        std::input_iterator It
+    >
+    requires util::mb::string<std::iter_value_t<It>>
     void parse(
-        R& range,
+        const It begin,
+        const It end,
         std::function<void(const It, It&, const It)> operand_parser = {}
     ) const {
-        parse(range.begin(), range.end(), operand_parser);
-    }
+        parse< It, typename std::iter_value_t<It>::encoding_type >(begin, end);
+    } 
 
-	template<iterator_value_convertible_to_string_view<CharT> It>
+
+	template<
+        std::input_iterator It,
+        class Encoding0
+    >
     void parse(
         const It begin,
         const It end,
@@ -64,17 +79,20 @@ public:
     ) const {
         It arg = begin;
         while(arg != end) {
-            auto first_char = (*arg)[0];
-            auto second_char = (*arg)[1];
+            auto& str {*arg};
+
+            auto first_char = str[0];
+            auto second_char = str[1];
+
             if(first_char != '-') break;
 
             if(second_char != '-') {
                 It prev = arg;
-                parse_one_hyphen_arg(begin, arg, end);
+                parse_one_hyphen_arg<Encoding0>(begin, arg, end);
                 if(prev == arg)
                     break;
             }
-            else if((*arg)[2] == 0){
+            else if(str.size() < 2) {
                 arg++; // skip '--', point to operands beg
                 break;
             }
@@ -84,9 +102,24 @@ public:
             parse_operand(begin, arg, end, operand_parser);
 	}
 
+    template<std::ranges::range R>
+    void parse(
+        R& range,
+        std::function
+        < void (
+            const std::ranges::iterator_t<R>,
+            std::ranges::iterator_t<R>&,
+            const std::ranges::iterator_t<R>
+        )> operand_parser = {}
+    ) const {
+        parse<std::ranges::iterator_t<R>>(range.begin(), range.end(), operand_parser);
+    }
+
 protected:
-    const option_t* option_by_name(CharT name) const {
-        auto name_to_option = options.find(name);
+    template<class Encoding0>
+    const option_t* option_by_name(util::mb::character_view<Encoding0> name) const {
+        auto converted = name.template convert<Encoding>();
+        auto name_to_option = options.find(converted);
         return name_to_option == options.end() ? nullptr : &(name_to_option->second);
     }
 
@@ -98,55 +131,58 @@ protected:
         std::function<void(const It, It&, const It)> operand_parser
     ) const {
         It prev = arg;
-		if(operand_parser)
+		if(operand_parser) {
             operand_parser(begin, arg, end);
+        }
+
         if(prev == arg)
-            throw std::runtime_error{"operands aren't parsed: "+string{*arg}};
+            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<util::utf8_encoding>()) };
     }
 
-    template<class It>
+    template<class Encoding0, class It>
     void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
         using namespace std;
         using namespace std::literals;
-        string_view arg{*arg_it};
-        
+        util::mb::basic_string_view<Encoding0> arg{*arg_it};
+
         for(
-            auto first_ch = arg.begin()+1, ch = first_ch;
-            *ch;
-            ch++
+            auto first_ch = ++arg.begin(), ch = first_ch;
+            ch != arg.end();
+            ++ch
         ) {
-            CharT name = *ch;
-            const option_t* option = option_by_name(name);
+            auto name = *ch;
+            const option_t* option = option_by_name<Encoding0>(name);
+
             if(!option) {
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
-                else throw runtime_error{"undefined option: '"s+name+"'"s};
+                else throw runtime_error{
+                    "undefined option: '" + name.template to_string<util::utf8_encoding>() + "'"
+                };
             }
 
-            if(!option->has_arg()) {
+            if(not option->has_arg()) {
                 get<parser_without_arg>(option->parser()) ();
                 continue;
             }
 
-            parser_with_arg<CharT> parser = get<parser_with_arg<CharT>>(option->parser());
+            auto parser = get<parser_with_arg<Encoding>>(option->parser());
 
             if(++ch == arg.end()) {
-                if(++arg_it==end) throw runtime_error{"argument is required for option '"s+name+"'"s};
-                parser(*arg_it);
+                if(++arg_it == end) throw runtime_error{
+                    "argument is required for option '"+name.template to_string<util::utf8_encoding>()+"'"
+                };
+                parser((*arg_it).template convert<Encoding>());
             }
-            else parser(string_view{ch, arg.end()});
+            else parser(util::mb::basic_string_view<Encoding0>{ch, arg.end()}.template convert<Encoding>());
             break;
         }
+
+
 
         arg_it++;
     }
 };
-
-using clap = basic_clap<char>;
-using wclap = basic_clap<wchar_t>;
-using u8clap = basic_clap<char8_t>;
-using u16clap = basic_clap<char16_t>;
-using u32clap = basic_clap<char32_t>;
 
 }
 

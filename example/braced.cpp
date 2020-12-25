@@ -11,26 +11,6 @@ void exec(vector<string> args) {
     std::string h00 = "null";
     std::string h01 = "null";
     std::string h1 = "null";
-
-    /*clap::braced_clap{}
-        .option(
-            "main",
-            {
-                {
-                    "h0",
-                    clap::braced_clap::braced_arg {
-                        { "h00", clap::value_parser<char>(h00) },
-                        { "h01", clap::value_parser<char>(h01) }
-                    },
-                },
-                {
-                    "empty",
-                    clap::braced_clap::braced_arg {},
-                },
-                { "h1", clap::value_parser<char>(h1) }
-            }
-        )
-        .parse(args);*/
     clap::braced_clap{}
         .braced(
             "main",
