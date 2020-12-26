@@ -24,9 +24,18 @@ namespace posix {
 
 template<class Encoding>
 struct basic_clap {
-    using char_type = typename Encoding::char_type;
-    using string = std::basic_string<char_type>;
-    using string_view = std::basic_string_view<char_type>;
+    template<class Encoding0>
+    using character = util::mb::character<Encoding0>;
+    template<class Encoding0>
+    using character_view = util::mb::character_view<Encoding0>;
+    
+    template<class Encoding0>
+    using string = util::mb::basic_string<Encoding0>;
+    template<class Encoding0>
+    using string_view = util::mb::basic_string_view<Encoding0>;
+
+    template<class It>
+    using operands_parser_t = std::function<void(const It, It&, const It)>;
 	
 	class option_t {
 		const std::variant<clap::parser_with_arg<Encoding>, parser_without_arg> m_parser;
@@ -37,17 +46,15 @@ struct basic_clap {
 
 		auto& parser() const { return m_parser; }
 
-		option_t(parser_with_arg<Encoding> p)
-		:m_parser{p} {}
+		option_t(parser_with_arg<Encoding> p) : m_parser{p} {}
 
-		option_t(parser_without_arg p)
-		:m_parser{p} {}
+		option_t(parser_without_arg p) : m_parser{p} {}
 	};
 
 protected:
-    std::map<util::mb::character<Encoding>, option_t> options;
+    std::map<character<Encoding>, option_t> options;
 public:
-    auto& option(const util::mb::character<Encoding>& name, auto parser) {;
+    auto& option(const character<Encoding>& name, auto parser) {;
         options.emplace(std::move(name), option_t{parser});
         return *this;
     }
@@ -62,20 +69,16 @@ public:
     void parse(
         const It begin,
         const It end,
-        std::function<void(const It, It&, const It)> operand_parser = {}
+        operands_parser_t<It> operand_parser = {}
     ) const {
         parse< It, typename std::iter_value_t<It>::encoding_type >(begin, end);
     } 
 
-
-	template<
-        std::input_iterator It,
-        class Encoding0
-    >
+	template<std::input_iterator It, class Encoding0>
     void parse(
         const It begin,
         const It end,
-        std::function<void(const It, It&, const It)> operand_parser = {}
+        operands_parser_t<It> operand_parser = {}
     ) const {
         It arg = begin;
         while(arg != end) {
@@ -102,22 +105,14 @@ public:
             parse_operand(begin, arg, end, operand_parser);
 	}
 
-    template<std::ranges::range R>
-    void parse(
-        R& range,
-        std::function
-        < void (
-            const std::ranges::iterator_t<R>,
-            std::ranges::iterator_t<R>&,
-            const std::ranges::iterator_t<R>
-        )> operand_parser = {}
-    ) const {
+    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    void parse(R& range, operands_parser_t<It> operand_parser = {}) const {
         parse<std::ranges::iterator_t<R>>(range.begin(), range.end(), operand_parser);
     }
 
 protected:
     template<class Encoding0>
-    const option_t* option_by_name(util::mb::character_view<Encoding0> name) const {
+    const option_t* option_by_name(character_view<Encoding0> name) const {
         auto converted = name.template convert<Encoding>();
         auto name_to_option = options.find(converted);
         return name_to_option == options.end() ? nullptr : &(name_to_option->second);
@@ -128,7 +123,7 @@ protected:
         const It begin,
         It& arg,
         const It end,
-        std::function<void(const It, It&, const It)> operand_parser
+        operands_parser_t<It> operand_parser
     ) const {
         It prev = arg;
 		if(operand_parser) {
@@ -136,14 +131,14 @@ protected:
         }
 
         if(prev == arg)
-            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<util::utf8_encoding>()) };
+            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<util::enc::utf8>()) };
     }
 
     template<class Encoding0, class It>
     void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
         using namespace std;
         using namespace std::literals;
-        util::mb::basic_string_view<Encoding0> arg{*arg_it};
+        string_view<Encoding0> arg{*arg_it};
 
         for(
             auto first_ch = ++arg.begin(), ch = first_ch;
@@ -157,7 +152,7 @@ protected:
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
                 else throw runtime_error{
-                    "undefined option: '" + name.template to_string<util::utf8_encoding>() + "'"
+                    "undefined option: '"+name.template to_string<util::enc::utf8>()+"'"
                 };
             }
 
@@ -170,15 +165,13 @@ protected:
 
             if(++ch == arg.end()) {
                 if(++arg_it == end) throw runtime_error{
-                    "argument is required for option '"+name.template to_string<util::utf8_encoding>()+"'"
+                    "argument is required for option '"+name.template to_string<util::enc::utf8>()+"'"
                 };
                 parser((*arg_it).template convert<Encoding>());
             }
-            else parser(util::mb::basic_string_view<Encoding0>{ch, arg.end()}.template convert<Encoding>());
+            else parser(string_view<Encoding0>{ch, arg.end()}.template convert<Encoding>());
             break;
         }
-
-
 
         arg_it++;
     }

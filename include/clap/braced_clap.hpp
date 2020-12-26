@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cxx_util/encoding.hpp>
 #include <initializer_list>
 #include <iterator>
 #include <stdexcept>
@@ -10,19 +11,19 @@
 #include <ranges>
 #include <variant>
 #include "parser.hpp"
-#include "iterator_util.hpp"
+#include "cxx_util/multibyte_string.hpp"
 
 namespace clap {
 
-template<class CharT>
+template<class Encoding>
 class basic_braced_clap;
 
-template<class CharT>
+template<class Encoding>
 struct basic_braced_arg {
-    using braced_arg = basic_braced_arg<CharT>;
-    using string = std::basic_string<CharT>;
-    using string_view = std::basic_string_view<CharT>;
-    using option_t = std::variant<parser_with_arg<CharT>, braced_arg>;
+    using braced_arg = basic_braced_arg<Encoding>;
+    using string = util::mb::basic_string<Encoding>;
+    using string_view = util::mb::basic_string_view<Encoding>;
+    using option_t = std::variant<parser_with_arg<Encoding>, braced_arg>;
     using options_map = std::map<string, option_t, std::less<>>;
     using raw_options = std::initializer_list<std::pair<string_view, option_t>>;
 
@@ -30,7 +31,7 @@ struct basic_braced_arg {
 
     basic_braced_arg(){}
 
-    auto& option(string_view name, parser_with_arg<CharT>&& parser) {
+    auto& option(string_view name, parser_with_arg<Encoding>&& parser) {
         options.emplace(name, std::move(parser));
         return *this;
     }
@@ -41,7 +42,7 @@ struct basic_braced_arg {
     }
 
     auto& value(string_view name, auto& value) {
-        return option(name, value_parser<CharT>(value));
+        return option(name, value_parser<Encoding>(value));
     }
 
     auto& braced(string_view name, raw_options options) {
@@ -51,58 +52,59 @@ struct basic_braced_arg {
     }
 };
 
-using braced_arg = basic_braced_arg<char>;
-using wbraced_arg = basic_braced_arg<wchar_t>;
-using u8braced_arg = basic_braced_arg<char8_t>;
-using u16braced_arg = basic_braced_arg<char16_t>;
-using u32braced_arg = basic_braced_arg<char32_t>;
-
-template<class CharT>
+template<class Encoding>
 struct basic_braced_clap {
-    using braced_arg = basic_braced_arg<CharT>;
-    using string = std::basic_string<CharT>;
-    using string_view = std::basic_string_view<CharT>;
+    using braced_arg = basic_braced_arg<Encoding>;
+
+    template<class Encoding0>
+    using character = util::mb::character<Encoding0>;
+    template<class Encoding0>
+    using character_view = util::mb::character_view<Encoding0>;
+    
+    template<class Encoding0>
+    using string = util::mb::basic_string<Encoding0>;
+    template<class Encoding0>
+    using string_view = util::mb::basic_string_view<Encoding0>;
+
     using option_t = typename braced_arg::option_t;
     using options_map = typename braced_arg::options_map;
-    using raw_options = typename std::initializer_list<std::pair<string_view, option_t>>;
-    using string_index_type = typename string::size_type;
+    using raw_options = typename std::initializer_list<std::pair<string_view<Encoding>, option_t>>;
+    using string_index_type = typename string<Encoding>::size_type;
 
-    auto& option(string_view name, parser_with_arg<CharT>&& parser) {
+    auto& option(string_view<Encoding> name, parser_with_arg<Encoding>&& parser) {
         root.option(name, std::move(parser));
         return *this;
     }
 
-    auto& option(string_view name, braced_arg&& braced) {
+    auto& option(string_view<Encoding> name, braced_arg&& braced) {
         root.option(name, std::move(braced));
         return *this;
     }
 
-    auto& braced(string_view name, raw_options options) {
+    auto& braced(string_view<Encoding> name, raw_options options) {
         root.braced(name, options);
         return * this;
     }
 
+    template<class Encoding0>
     void parse(const std::ranges::range auto& r) {
         parse(std::ranges::begin(r), std::ranges::end(r));
     }
 
-    template<iterator_value_convertible_to_string_view<CharT> I>
+    template<class Encoding0, std::input_iterator I>
     void parse(I begin, I end) {
         string_index_type i = 0;
-        parse_option(begin, end, root.options, i);
+        parse_option<Encoding0>(begin, end, root.options, i);
         if(begin != end) throw std::runtime_error{"unexpected '}'"};
     }
 
 protected:
     braced_arg root;
 
-    template<iterator_value_convertible_to_string_view<CharT> I>
+    template<class Encoding0, std::input_iterator I>
     static inline void
     parse_option(I& begin, I end, options_map& options, string_index_type& beginning) {
-        using namespace std;
-        using namespace literals::string_literals;
-
-        auto s = [&]() { return string_view{*begin}.substr(beginning); };
+        auto s = [&]() { return string_view<Encoding0>{*begin}.substr(beginning); };
         auto is_end = [&](){ return begin == end; };
 
         auto next_word = [&]() -> bool {
@@ -114,11 +116,11 @@ protected:
 
         auto skip = [&](string_index_type chars) {
             if(chars >= s().size())
-                throw runtime_error {
-                    "skipped too many characters ("s +
-                    to_string(chars) +
+                throw std::runtime_error {
+                    "skipped too many characters (" +
+                    std::to_string(chars) +
                     ") for string '" +
-                     string{s()} +
+                     s().template to_string<util::enc::utf8>() +
                     "'"
                 };
             else beginning += chars;
@@ -130,13 +132,13 @@ protected:
                 skip(1);
                 return true;
             }
-            else throw runtime_error{"string size is zero"};
+            else throw std::runtime_error{"string size is zero"};
         };
 
         while(begin != end) {
             if(s().front() == '}') return;
 
-            string_index_type closest_index = string::npos;
+            string_index_type closest_index = string<Encoding0>::npos;
             
             for(string_index_type index = 0; index < s().size(); index++)
                 if(s()[index] == '=' || s()[index] == '{') {
@@ -145,43 +147,51 @@ protected:
                 }
 
             // option name, before '='
-            string_view name = s().substr(0, closest_index);
-            if(name.empty()) throw runtime_error { "option name is empty" };
+            string_view<Encoding0> name = s().substr(0, closest_index);
+            if(name.empty()) throw std::runtime_error { "option name is empty" };
 
             auto name_to_option = options.find(name);
             if(name_to_option == options.end())
-                throw runtime_error{"can't find option '"+string{name}+"'"};
+                throw std::runtime_error{
+                    "can't find option '"+name.template to_string<util::enc::utf8>()+"'"
+                };
             auto& option = name_to_option->second;
 
-            if(closest_index == string::npos) {
+            if(closest_index == string<Encoding>::npos) {
                 if(!next_word())
-                    throw runtime_error{"there's no value for option '"+string{name}+"'"};
+                    throw std::runtime_error{
+                        "there's no value for option '"+name.template to_string<util::enc::utf8>()+"'"
+                    };
             }
             else skip(closest_index);
 
             // '=' or '{'
-            CharT ch = s().front();
+            auto ch = s().front();
 
             // skip '=' or '{'
             if(!next_char())
-                throw runtime_error{"unexpected end after '"+string{name}+" "+ch+"'"};
+                throw std::runtime_error{
+                    "unexpected end after '"+name.template to_string<util::enc::utf8>()+" "+ch.to_string()+"'"
+                };
 
             if(ch == '{') {
-                parse_option(begin, end, get<braced_arg>(option).options, beginning);
+                parse_option<Encoding0>(begin, end, get<braced_arg>(option).options, beginning);
                 if(is_end() || s().front() != '}')
-                    throw runtime_error{
-                        "unexpected end of branced option '"+string{name}+"'"
+                    throw std::runtime_error{
+                        "unexpected end of branced option '"+name.template to_string<util::enc::utf8>()+"'"
                     };
                 if(!next_char()) return;
             }
             else if(ch == '=') {
                 auto closing_index = s().find('}');
                 auto arg = s().substr(0, closing_index);
-                if(arg.empty()) throw runtime_error{"value of option '"+string{name}+"' is empty"};
-                std::get<parser_with_arg<CharT>>(option) (arg);
+                if(arg.empty()) throw std::runtime_error{
+                    "value of option '"+name.template to_string<util::enc::utf8>()+"' is empty"
+                };
+                std::get<parser_with_arg<Encoding>>(option) (arg);
  
                 // we have '}' here. skipping and returning to parent
-                if(closing_index != string::npos) {
+                if(closing_index != string<Encoding>::npos) {
                     skip(closing_index);
                     return;
                 }
@@ -190,8 +200,8 @@ protected:
                 if(!next_word()) return;
                 // it could be at the beginning of next word
             }
-            else throw runtime_error {
-                "undefined character '"s+ch+"' after option name '"+string{name}+"'"
+            else throw std::runtime_error {
+                "undefined character '"+ch.to_string()+"' after option name '"+name.template to_string<util::enc::utf8>()+"'"
             };
         }
     }

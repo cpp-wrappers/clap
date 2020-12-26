@@ -18,7 +18,7 @@ namespace clap {
     template<class Encoding>
     inline parser_with_arg<Encoding> value_parser(auto& val) {
         return [&val](util::mb::basic_string_view<Encoding> arg) {
-            if constexpr(util::is_assignable_from_string_view_v<Encoding::char_type, decltype(val)>)
+            if constexpr(util::is_assignable_from_string_view_v<typename Encoding::char_type, decltype(val)>)
                 val = arg.to_string_view();
             else
                 std::basic_istringstream<typename Encoding::char_type>{
@@ -36,7 +36,7 @@ namespace clap {
     template<class Encoding, class T>
     inline parser_with_arg<Encoding> values_parser(std::output_iterator<T> auto oit) {
         return [oit](util::mb::basic_string_view<Encoding> arg) mutable {
-            if constexpr(util::is_constructible_from_string_view_v<Encoding::char_type, T>)
+            if constexpr(util::is_constructible_from_string_view_v<typename Encoding::char_type, T>)
                 *oit++ = T{arg};
             else {
                 T t;

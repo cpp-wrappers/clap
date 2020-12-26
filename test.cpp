@@ -2,8 +2,8 @@
 #include <string>
 #include <iostream>
 #include "include/clap/posix_clap.hpp"
-//#include "./include/clap/braced_clap.hpp"
-//#include "./include/clap/gnu_clap.hpp"
+#include "include/clap/braced_clap.hpp"
+#include "include/clap/gnu_clap.hpp"
 #include <codecvt>
 #include <cxx_util/encoding.hpp>
 
@@ -17,7 +17,7 @@ void flag(std::vector<std::string> args0) {
 
     std::map<char, bool> flags{{'a', false}, {'b', false}, {'c', false}};
 
-    posix::basic_clap<util::ascii_encoding> parser;
+    posix::basic_clap<util::enc::ascii> parser;
 
     for(auto& name_to_value : flags)
         parser.flag(name_to_value.first, name_to_value.second);
@@ -25,43 +25,48 @@ void flag(std::vector<std::string> args0) {
     parser.parse(args);
     
     for(auto& name_to_value : flags) 
-        std::cout << name_to_value.first << ": " << name_to_value.second << "\n";
-
-    //cout << 
+        std::cout << name_to_value.first << ": " << name_to_value.second << std::endl;
 }
 
-/*void echo(vector<string> args) {
+void echo(std::vector<std::string> args0) {
+    std::vector<util::mb::ascii_string> args;
+
+    for(auto a : args0) args.push_back(a);
+
     std::string echo;
-    gnu::clap{}
+    gnu::basic_clap<util::enc::ascii>{}
         .value('e', "echo", echo)
-        .parse(args);
+        .parse<util::enc::ascii>(args);
 
-    cout << echo << "\n";
+    std::cout << echo << std::endl;
 }
 
-void braced(vector<string> args) {
+void braced(std::vector<std::string> args) {
     bool bool_val = false;
     std::string h00 = "null";
     std::string h01 = "null";
     std::string h1 = "null";
-    clap::braced_clap{}
+    clap::basic_braced_clap<util::enc::ascii>{}
         .braced(
             "main",
             {
-                { "hi", clap::value_parser<char>(h00) }
+                { "hi", clap::value_parser<util::enc::ascii>(h00) }
             }
         )
-        .option("bool_val", clap::value_parser<char>(bool_val))
-        .parse(args.begin(), args.end());
+        .option("bool_val", clap::value_parser<util::enc::ascii>(bool_val))
+        .parse<util::enc::ascii>(args.begin(), args.end());
 
-    cout << h00 << "\n";
-    cout << h01 << "\n";
-    cout << h1 << "\n";
-    cout << bool_val << "\n";
-}*/
+    std::cout << h00 << "\n";
+    std::cout << h01 << "\n";
+    std::cout << h1 << "\n";
+    std::cout << bool_val << "\n";
+}
 
 int main() {
+    std::cout << "posix: " << std::endl;
     flag({"-a", "-b"});
-    //echo({"--echo=hello"});
-    //echo({"--echo=hello"});braced({"--echo=hello"});
+    std::cout << "gnu: " << std::endl;
+    echo({"--echo=hello"});
+    std::cout << "braced: " << std::endl;
+    braced({"main{", "hi=hello_from_hi", "}", "bool_val=1"});
 }

@@ -17,77 +17,85 @@ namespace gnu {
 template<class Encoding>
 struct basic_clap : protected posix::basic_clap<Encoding> {
 protected:
-    using char_type = typename Encoding::char_type;
-    using string_view_type = std::basic_string_view<char_type>;
-    using string_type = std::basic_string<char_type>;
+    template<class Encoding0>
+    using character = util::mb::character<Encoding0>;
+    template<class Encoding0>
+    using character_view = util::mb::character_view<Encoding0>;
+    
+    template<class Encoding0>
+    using string = util::mb::basic_string<Encoding0>;
+    template<class Encoding0>
+    using string_view = util::mb::basic_string_view<Encoding0>;
+
+    template<class It>
+    using operands_parser_t = std::function<void(const It, It&, const It)>;
+
 	using base_t = posix::basic_clap<Encoding>;
 
 	using option_t = typename base_t::option_t;
-    std::map<util::mb::basic_string<Encoding>, const option_t, std::less<>> options;
-    std::map<util::mb::basic_string<Encoding>, util::mb::character<Encoding>, std::less<>> long_to_short_names;
+    
+    std::map<string<Encoding>, const option_t, std::less<>> options;
+    std::map<string<Encoding>, character<Encoding>, std::less<>> long_to_short_names;
 
 public:
 	using base_t::option;
 
-	auto& option(util::mb::basic_string<Encoding> long_name, auto parser) {
+	auto& option(string<Encoding> long_name, auto parser) {
         options.emplace(long_name, option_t{parser});
 		return *this;
     }
 
-    auto& option(util::mb::character<Encoding> name, util::mb::basic_string<Encoding> long_name, auto parser) {
+    auto& option(character<Encoding> name, string<Encoding> long_name, auto parser) {
         base_t::option(name, parser);
+        options.emplace(long_name, option_t{parser});
         long_to_short_names.emplace(long_name, name);
         return *this;
     }
 
-	auto& flag(util::mb::basic_string<Encoding> long_name, bool& val) { return option(long_name, flag_parser(val)); }
-	auto& flag(util::mb::character<Encoding> name, util::mb::basic_string<Encoding> long_name, bool& val) { return option(name, long_name, flag_parser(val)); }
+	auto& flag(string<Encoding> long_name, bool& val) { return option(long_name, flag_parser(val)); }
+	auto& flag(character<Encoding> name, string<Encoding> long_name, bool& val) { return option(name, long_name, flag_parser(val)); }
 
-	auto& value(util::mb::basic_string<Encoding> long_name, auto& val) {
+	auto& value(string<Encoding> long_name, auto& val) {
         return option(long_name, value_parser<Encoding>(val));
     }
-	auto& value(util::mb::character<Encoding> name, util::mb::basic_string<Encoding> long_name, auto& val) {
+	auto& value(character<Encoding> name, string<Encoding> long_name, auto& val) {
         return option(name, long_name, value_parser<Encoding>(val));
     }
 
     template<class T>
-    auto& values(util::mb::character<Encoding> name, util::mb::basic_string<Encoding> long_name, auto output_it) {
+    auto& values(character<Encoding> name, string<Encoding> long_name, auto output_it) {
         return option(name, long_name, values_parser<Encoding, T>(output_it));
     }
 	
 	using base_t::parse_operand;
 
-    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    template<class Encoding0, std::ranges::range R, class It = std::ranges::iterator_t<R>>
     void parse(
         R& range,
-        std::function<void(const It, It&, const It)> operand_parser = {}
+        operands_parser_t<It> operand_parser = {}
     ) const {
-        parse(range.begin(), range.end(), operand_parser);
+        parse<Encoding0, It>(range.begin(), range.end(), operand_parser);
     }
 
-    template<std::input_iterator It>
+    template<class Encoding0, std::input_iterator It>
     void parse(
         const It begin,
         const It end,
-       	std::function<void(const It, It&, const It)> operand_parser = {},
-        std::locale locale = {}
+       	operands_parser_t<It> operand_parser = {}
     ) const {
-        //std::ctype<ACharT>& ctype_facet = std::use_facet<std::ctype<ACharT>>(locale);
-
         It arg = begin;
         while(arg != end) {
-            //ctype_facet.widen(arg.begin(), arg.end());
-            util::mb::basic_string_view<Encoding> str {*arg};
+            string_view<Encoding> str {*arg};
 
-            char first_char = (*arg)[0];
+            auto first_char = str[0];
             if(first_char == '-') {
-                char second_char = (*arg)[1];
+                auto second_char = str[1];
                 It prev = arg;
 
                 if(second_char != '-') 
-                    base_t::parse_one_hyphen_arg(begin, arg, end);
-                else if( (*arg)[2] )
-                    parse_two_hyphen_arg(begin, arg, end);
+                    base_t::template parse_one_hyphen_arg<Encoding0, It>(begin, arg, end);
+                else if( str.size() > 2 )
+                    parse_two_hyphen_arg<Encoding0, It>(begin, arg, end);
                 else if(++arg == end) break; // skip '--'
 
                 if(prev != arg) continue;
@@ -99,13 +107,13 @@ public:
 
 protected:
     template<class Encoding0>
-    const option_t* option_by_name(util::mb::basic_string<Encoding0> name) const {
-        auto hame_to_option = options.find(name);
+    const option_t* option_by_name(string_view<Encoding0> name) const {
+        auto hame_to_option = options.find(name.template convert<Encoding>());
         if(hame_to_option == options.end()) {
             auto long_to_short_name = long_to_short_names.find(name);
             if(long_to_short_name == long_to_short_names.end())
                 return nullptr;
-            return base_t::option_by_name(long_to_short_name->second);
+            return base_t::template option_by_name<Encoding0>(long_to_short_name->second);
         }
         return &(hame_to_option->second);
     }
@@ -113,31 +121,32 @@ protected:
     template<class Encoding0, class It>
     void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) const {
         using namespace std;
-        util::mb::basic_string_view<Encoding0> arg{*arg_it};
+        string_view<Encoding0> arg{*arg_it};
 
         auto option_name_beg_pos = 2; // skip '--'
         auto option_name_beg = arg.begin()+option_name_beg_pos;
         auto eq_sign_pos = arg.find_first_of('=', option_name_beg_pos);
-        bool has_eq_sign = eq_sign_pos != string::npos;
+        bool has_eq_sign = eq_sign_pos != string_view<Encoding0>::npos;
         auto option_name_end = has_eq_sign ? arg.begin()+eq_sign_pos : arg.end() ;
 
-        util::mb::basic_string_view<Encoding0> option_name{option_name_beg, option_name_end};
-
+        string_view<Encoding0> option_name{option_name_beg, option_name_end};
+        
         auto option = option_by_name<Encoding0>(option_name);
-
-        //if(std::all_of(option_name.begin(), option_name.end(), [](CharT ch){ return ch <= 0x8F; }))
-            //option = option_by_name(option_name);
         
         if(!option) return;
 
         if(!option->has_arg())
             get<parser_without_arg>(option->parser()) ();
         else {
-            if(!has_eq_sign) throw runtime_error{"option '"+string{option_name}+"' must have an argument"};
+            if(!has_eq_sign) throw runtime_error{
+                "option '"+option_name.template to_string<util::enc::ascii>()+"' must have an argument"
+            };
             auto option_arg_beg = arg.begin()+eq_sign_pos+1; // skip '='
-            util::mb::basic_string_view<Encoding0> option_arg{option_arg_beg, arg.end()};
+            string_view<Encoding0> option_arg{option_arg_beg, arg.end()};
             if(option_arg.empty())
-                throw runtime_error{"argument length for option '"+string{option_name}+"' is zero"};
+                throw runtime_error{
+                    "argument length for option '"+option_name.template to_string<util::enc::ascii>()+"' is zero"
+                };
             get<parser_with_arg<Encoding>>(option->parser()) (option_arg);
         }
 
