@@ -12,12 +12,12 @@
 
 namespace clap {
     template<class Encoding>
-    using parser_with_arg = std::function<void(util::mb::basic_string_view<Encoding>)>;
+    using parser_with_arg = std::function<void(mb::basic_string_view<Encoding>)>;
     using parser_without_arg = std::function<void(void)>;
 
     template<class Encoding>
     inline parser_with_arg<Encoding> value_parser(auto& val) {
-        return [&val](util::mb::basic_string_view<Encoding> arg) {
+        return [&val](mb::basic_string_view<Encoding> arg) {
             if constexpr(util::is_assignable_from_string_view_v<typename Encoding::char_type, decltype(val)>)
                 val = arg.to_string_view();
             else
@@ -35,7 +35,7 @@ namespace clap {
 
     template<class Encoding, class T>
     inline parser_with_arg<Encoding> values_parser(std::output_iterator<T> auto oit) {
-        return [oit](util::mb::basic_string_view<Encoding> arg) mutable {
+        return [oit](mb::basic_string_view<Encoding> arg) mutable {
             if constexpr(util::is_constructible_from_string_view_v<typename Encoding::char_type, T>)
                 *oit++ = T{arg};
             else {

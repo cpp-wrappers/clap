@@ -21,8 +21,8 @@ class basic_braced_clap;
 template<class Encoding>
 struct basic_braced_arg {
     using braced_arg = basic_braced_arg<Encoding>;
-    using string = util::mb::basic_string<Encoding>;
-    using string_view = util::mb::basic_string_view<Encoding>;
+    using string = mb::basic_string<Encoding>;
+    using string_view = mb::basic_string_view<Encoding>;
     using option_t = std::variant<parser_with_arg<Encoding>, braced_arg>;
     using options_map = std::map<string, option_t, std::less<>>;
     using raw_options = std::initializer_list<std::pair<string_view, option_t>>;
@@ -57,14 +57,14 @@ struct basic_braced_clap {
     using braced_arg = basic_braced_arg<Encoding>;
 
     template<class Encoding0>
-    using character = util::mb::character<Encoding0>;
+    using character = mb::character<Encoding0>;
     template<class Encoding0>
-    using character_view = util::mb::character_view<Encoding0>;
+    using character_view = mb::character_view<Encoding0>;
     
     template<class Encoding0>
-    using string = util::mb::basic_string<Encoding0>;
+    using string = mb::basic_string<Encoding0>;
     template<class Encoding0>
-    using string_view = util::mb::basic_string_view<Encoding0>;
+    using string_view = mb::basic_string_view<Encoding0>;
 
     using option_t = typename braced_arg::option_t;
     using options_map = typename braced_arg::options_map;
@@ -120,7 +120,7 @@ protected:
                     "skipped too many characters (" +
                     std::to_string(chars) +
                     ") for string '" +
-                     s().template to_string<util::enc::utf8>() +
+                     s().template to_string<enc::ascii>() +
                     "'"
                 };
             else beginning += chars;
@@ -153,14 +153,14 @@ protected:
             auto name_to_option = options.find(name);
             if(name_to_option == options.end())
                 throw std::runtime_error{
-                    "can't find option '"+name.template to_string<util::enc::utf8>()+"'"
+                    "can't find option '"+name.template to_string<enc::ascii>()+"'"
                 };
             auto& option = name_to_option->second;
 
             if(closest_index == string<Encoding>::npos) {
                 if(!next_word())
                     throw std::runtime_error{
-                        "there's no value for option '"+name.template to_string<util::enc::utf8>()+"'"
+                        "there's no value for option '"+name.template to_string<enc::ascii>()+"'"
                     };
             }
             else skip(closest_index);
@@ -171,14 +171,14 @@ protected:
             // skip '=' or '{'
             if(!next_char())
                 throw std::runtime_error{
-                    "unexpected end after '"+name.template to_string<util::enc::utf8>()+" "+ch.to_string()+"'"
+                    "unexpected end after '"+name.template to_string<enc::ascii>()+" "+ch.to_string()+"'"
                 };
 
             if(ch == '{') {
                 parse_option<Encoding0>(begin, end, get<braced_arg>(option).options, beginning);
                 if(is_end() || s().front() != '}')
                     throw std::runtime_error{
-                        "unexpected end of branced option '"+name.template to_string<util::enc::utf8>()+"'"
+                        "unexpected end of branced option '"+name.template to_string<enc::ascii>()+"'"
                     };
                 if(!next_char()) return;
             }
@@ -186,7 +186,7 @@ protected:
                 auto closing_index = s().find('}');
                 auto arg = s().substr(0, closing_index);
                 if(arg.empty()) throw std::runtime_error{
-                    "value of option '"+name.template to_string<util::enc::utf8>()+"' is empty"
+                    "value of option '"+name.template to_string<enc::ascii>()+"' is empty"
                 };
                 std::get<parser_with_arg<Encoding>>(option) (arg);
  
@@ -201,7 +201,7 @@ protected:
                 // it could be at the beginning of next word
             }
             else throw std::runtime_error {
-                "undefined character '"+ch.to_string()+"' after option name '"+name.template to_string<util::enc::utf8>()+"'"
+                "undefined character '"+ch.to_string()+"' after option name '"+name.template to_string<enc::ascii>()+"'"
             };
         }
     }

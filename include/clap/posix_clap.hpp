@@ -25,14 +25,14 @@ namespace posix {
 template<class Encoding>
 struct basic_clap {
     template<class Encoding0>
-    using character = util::mb::character<Encoding0>;
+    using character = mb::character<Encoding0>;
     template<class Encoding0>
-    using character_view = util::mb::character_view<Encoding0>;
-    
+    using character_view = mb::character_view<Encoding0>;
+
     template<class Encoding0>
-    using string = util::mb::basic_string<Encoding0>;
+    using string = mb::basic_string<Encoding0>;
     template<class Encoding0>
-    using string_view = util::mb::basic_string_view<Encoding0>;
+    using string_view = mb::basic_string_view<Encoding0>;
 
     template<class It>
     using operands_parser_t = std::function<void(const It, It&, const It)>;
@@ -65,7 +65,7 @@ public:
     template<
         std::input_iterator It
     >
-    requires util::mb::string<std::iter_value_t<It>>
+    requires mb::string<std::iter_value_t<It>>
     void parse(
         const It begin,
         const It end,
@@ -131,7 +131,7 @@ protected:
         }
 
         if(prev == arg)
-            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<util::enc::utf8>()) };
+            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<enc::ascii>()) };
     }
 
     template<class Encoding0, class It>
@@ -152,7 +152,7 @@ protected:
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
                 else throw runtime_error{
-                    "undefined option: '"+name.template to_string<util::enc::utf8>()+"'"
+                    "undefined option: '"+name.template to_string<enc::ascii>()+"'"
                 };
             }
 
@@ -165,7 +165,7 @@ protected:
 
             if(++ch == arg.end()) {
                 if(++arg_it == end) throw runtime_error{
-                    "argument is required for option '"+name.template to_string<util::enc::utf8>()+"'"
+                    "argument is required for option '"+name.template to_string<enc::ascii>()+"'"
                 };
                 parser((*arg_it).template convert<Encoding>());
             }

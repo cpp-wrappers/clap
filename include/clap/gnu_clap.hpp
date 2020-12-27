@@ -18,14 +18,14 @@ template<class Encoding>
 struct basic_clap : protected posix::basic_clap<Encoding> {
 protected:
     template<class Encoding0>
-    using character = util::mb::character<Encoding0>;
+    using character = mb::character<Encoding0>;
     template<class Encoding0>
-    using character_view = util::mb::character_view<Encoding0>;
+    using character_view = mb::character_view<Encoding0>;
     
     template<class Encoding0>
-    using string = util::mb::basic_string<Encoding0>;
+    using string = mb::basic_string<Encoding0>;
     template<class Encoding0>
-    using string_view = util::mb::basic_string_view<Encoding0>;
+    using string_view = mb::basic_string_view<Encoding0>;
 
     template<class It>
     using operands_parser_t = std::function<void(const It, It&, const It)>;
@@ -139,13 +139,13 @@ protected:
             get<parser_without_arg>(option->parser()) ();
         else {
             if(!has_eq_sign) throw runtime_error{
-                "option '"+option_name.template to_string<util::enc::ascii>()+"' must have an argument"
+                "option '"+option_name.template to_string<enc::ascii>()+"' must have an argument"
             };
             auto option_arg_beg = arg.begin()+eq_sign_pos+1; // skip '='
             string_view<Encoding0> option_arg{option_arg_beg, arg.end()};
             if(option_arg.empty())
                 throw runtime_error{
-                    "argument length for option '"+option_name.template to_string<util::enc::ascii>()+"' is zero"
+                    "argument length for option '"+option_name.template to_string<enc::ascii>()+"' is zero"
                 };
             get<parser_with_arg<Encoding>>(option->parser()) (option_arg);
         }
