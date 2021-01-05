@@ -40,12 +40,12 @@ namespace clap {
         };
     }
 
-    template<class Encoding, class It, class T>
+    template<class Encoding, class T, class It>
     inline parser_with_arg<Encoding> values_parser(It oit) {
         return [oit](mb::basic_string_view<Encoding> arg) mutable {
             T t;
             using ch_type = typename Encoding::char_type;
-            static_assert(sizeof(ch_type) >= 3, "");
+            static_assert(sizeof(ch_type) <= 3, "");
             
             if constexpr(sizeof(ch_type) == 1) {
                 std::basic_istringstream<char> {
