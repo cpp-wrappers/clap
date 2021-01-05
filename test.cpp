@@ -1,13 +1,14 @@
-#include <cxx_util/multibyte_string.hpp>
+#include <cxx_util/encoding/encoding.hpp>
+#include <cxx_util/mb/string.hpp>
 #include <type_traits>
 #include <vector>
 #include <string>
 #include <iostream>
 #include "include/clap/posix_clap.hpp"
-#include "include/clap/braced_clap.hpp"
 #include "include/clap/gnu_clap.hpp"
-#include <codecvt>
-#include <cxx_util/encoding.hpp>
+#include "include/clap/braced_clap.hpp"
+//#include <codecvt>
+//#include <cxx_util/encoding/encoding.hpp>
 
 void flag(std::vector<mb::ascii_string> args) {
     std::map<char, bool> flags{{'a', false}, {'b', false}, {'c', false}};
@@ -17,18 +18,20 @@ void flag(std::vector<mb::ascii_string> args) {
     for(auto& name_to_value : flags)
         parser.flag(name_to_value.first, name_to_value.second);
 	
-    parser.parse(args);
+    parser.parse<enc::ascii>(args.begin(), args.end());
     
     for(auto& name_to_value : flags) 
         std::cout << name_to_value.first << ": " << name_to_value.second << std::endl;
 }
 
-void echo(std::vector<mb::ascii_string> args) {
-    std::string echo;
-    gnu::basic_clap<enc::ascii>{}
-        .value('e', "echo", echo)
-        .parse<enc::ascii>(args);
-    std::cout << echo << std::endl;
+void echo(std::vector<mb::utf8_string> args) {
+    mb::utf8_string echo = u8"not found";
+
+    gnu::basic_clap<enc::utf8>{}
+        .value('e', u8"echo", echo)
+        .parse<enc::utf8>(args.begin(), args.end());
+
+    std::cout << echo.template to_string<char>() << std::endl;
 }
 
 void braced(std::vector<mb::ascii_string> args) {
@@ -58,12 +61,12 @@ void braced(std::vector<mb::ascii_string> args) {
 
 int main() {
 #ifdef _WIN32
-    SetConsoleOutputCP(1201);
+    SetConsoleOutputCP(CP_UTF8);
 #endif
     std::cout << "posix: " << std::endl;
     flag({"-a", "-b"});
     std::cout << "gnu: " << std::endl;
-    echo({"--echo=Приветики"});
+    echo({u8"--echo=Приветики"});
     std::cout << "braced: " << std::endl;
     braced({"main{", "hi=hello_from_hi", "}", "bool_val=1"});
 }

@@ -3,28 +3,27 @@
 #include "posix_clap.hpp"
 #include <algorithm>
 #include <cwchar>
-#include <cxx_util/multibyte_string.hpp>
+#include <cxx_util/mb/string.hpp>
 #include <functional>
 #include <iterator>
-#include <locale>
 #include <string_view>
-#include "cxx_util/encoding.hpp"
+#include "cxx_util/encoding/encoding.hpp"
 
 namespace clap {
 
 namespace gnu {
 
-template<class Encoding>
+template<enc::encoding Encoding>
 struct basic_clap : protected posix::basic_clap<Encoding> {
 protected:
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character = mb::character<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character_view = mb::character_view<Encoding0>;
     
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string = mb::basic_string<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string_view = mb::basic_string_view<Encoding0>;
 
     template<class It>
@@ -69,33 +68,33 @@ public:
 	
 	using base_t::parse_operand;
 
-    template<class Encoding0, std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    /*template<enc::encoding Encoding0, std::ranges::range R, class It = std::ranges::iterator_t<R>>
     void parse(
         R& range,
         operands_parser_t<It> operand_parser = {}
     ) const {
         parse<Encoding0, It>(range.begin(), range.end(), operand_parser);
-    }
+    }*/
 
-    template<class Encoding0, std::input_iterator It>
+    template<enc::encoding Encoding0, class InputIt>
     void parse(
-        const It begin,
-        const It end,
-       	operands_parser_t<It> operand_parser = {}
+        const InputIt begin,
+        const InputIt end,
+       	operands_parser_t<InputIt> operand_parser = {}
     ) const {
-        It arg = begin;
+        InputIt arg = begin;
         while(arg != end) {
             string_view<Encoding> str {*arg};
 
             auto first_char = str[0];
             if(first_char == '-') {
                 auto second_char = str[1];
-                It prev = arg;
+                InputIt prev = arg;
 
                 if(second_char != '-') 
-                    base_t::template parse_one_hyphen_arg<Encoding0, It>(begin, arg, end);
+                    base_t::template parse_one_hyphen_arg<Encoding0, InputIt>(begin, arg, end);
                 else if( str.size() > 2 )
-                    parse_two_hyphen_arg<Encoding0, It>(begin, arg, end);
+                    parse_two_hyphen_arg<Encoding0, InputIt>(begin, arg, end);
                 else if(++arg == end) break; // skip '--'
 
                 if(prev != arg) continue;
@@ -106,7 +105,7 @@ public:
     }
 
 protected:
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     const option_t* option_by_name(string_view<Encoding0> name) const {
         auto hame_to_option = options.find(name.template convert<Encoding>());
         if(hame_to_option == options.end()) {
@@ -118,7 +117,7 @@ protected:
         return &(hame_to_option->second);
     }
 
-    template<class Encoding0, class It>
+    template<enc::encoding Encoding0, class It>
     void parse_two_hyphen_arg(const It begin, It& arg_it, const It e) const {
         using namespace std;
         string_view<Encoding0> arg{*arg_it};
@@ -139,13 +138,17 @@ protected:
             get<parser_without_arg>(option->parser()) ();
         else {
             if(!has_eq_sign) throw runtime_error{
-                "option '"+option_name.template to_string<enc::ascii>()+"' must have an argument"
+                "option '"
+                +option_name.template to_string<enc::utf8>().template to_string<char>()
+                +"' must have an argument"
             };
             auto option_arg_beg = arg.begin()+eq_sign_pos+1; // skip '='
             string_view<Encoding0> option_arg{option_arg_beg, arg.end()};
             if(option_arg.empty())
-                throw runtime_error{
-                    "argument length for option '"+option_name.template to_string<enc::ascii>()+"' is zero"
+                throw runtime_error {
+                    "argument length for option '"
+                    +option_name.template to_string<enc::utf8>().template to_string<char>()
+                    +"' is zero"
                 };
             get<parser_with_arg<Encoding>>(option->parser()) (option_arg);
         }

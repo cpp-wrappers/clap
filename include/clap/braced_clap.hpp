@@ -1,24 +1,22 @@
 #pragma once
 
-#include <cxx_util/encoding.hpp>
+#include <cxx_util/encoding/encoding.hpp>
 #include <initializer_list>
 #include <iterator>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <sstream>
 #include <map>
-#include <ranges>
 #include <variant>
 #include "parser.hpp"
-#include "cxx_util/multibyte_string.hpp"
+#include "cxx_util/mb/string.hpp"
 
 namespace clap {
 
-template<class Encoding>
-class basic_braced_clap;
+template<enc::encoding Encoding>
+struct basic_braced_clap;
 
-template<class Encoding>
+template<enc::encoding Encoding>
 struct basic_braced_arg {
     using braced_arg = basic_braced_arg<Encoding>;
     using string = mb::basic_string<Encoding>;
@@ -52,18 +50,18 @@ struct basic_braced_arg {
     }
 };
 
-template<class Encoding>
+template<enc::encoding Encoding>
 struct basic_braced_clap {
     using braced_arg = basic_braced_arg<Encoding>;
 
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character = mb::character<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character_view = mb::character_view<Encoding0>;
     
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string = mb::basic_string<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string_view = mb::basic_string_view<Encoding0>;
 
     using option_t = typename braced_arg::option_t;
@@ -86,13 +84,13 @@ struct basic_braced_clap {
         return * this;
     }
 
-    template<class Encoding0>
+    /*template<enc::encoding Encoding0>
     void parse(const std::ranges::range auto& r) {
         parse(std::ranges::begin(r), std::ranges::end(r));
-    }
+    }*/
 
-    template<class Encoding0, std::input_iterator I>
-    void parse(I begin, I end) {
+    template<enc::encoding Encoding0, class InputIterator>
+    void parse(InputIterator begin, InputIterator end) {
         string_index_type i = 0;
         parse_option<Encoding0>(begin, end, root.options, i);
         if(begin != end) throw std::runtime_error{"unexpected '}'"};
@@ -101,9 +99,9 @@ struct basic_braced_clap {
 protected:
     braced_arg root;
 
-    template<class Encoding0, std::input_iterator I>
+    template<enc::encoding Encoding0, class InputIterator>
     static inline void
-    parse_option(I& begin, I end, options_map& options, string_index_type& beginning) {
+    parse_option(InputIterator& begin, InputIterator end, options_map& options, string_index_type& beginning) {
         auto s = [&]() { return string_view<Encoding0>{*begin}.substr(beginning); };
         auto is_end = [&](){ return begin == end; };
 
@@ -119,9 +117,9 @@ protected:
                 throw std::runtime_error {
                     "skipped too many characters (" +
                     std::to_string(chars) +
-                    ") for string '" +
-                     s().template to_string<enc::ascii>() +
-                    "'"
+                    ") for string '"
+                    +s().template to_string<enc::utf8>().template to_string<char>()
+                    +"'"
                 };
             else beginning += chars;
         };
@@ -153,14 +151,18 @@ protected:
             auto name_to_option = options.find(name);
             if(name_to_option == options.end())
                 throw std::runtime_error{
-                    "can't find option '"+name.template to_string<enc::ascii>()+"'"
+                    "can't find option '"
+                    +name.template to_string<enc::utf8>().template to_string<char>()
+                    +"'"
                 };
             auto& option = name_to_option->second;
 
             if(closest_index == string<Encoding>::npos) {
                 if(!next_word())
                     throw std::runtime_error{
-                        "there's no value for option '"+name.template to_string<enc::ascii>()+"'"
+                        "there's no value for option '"
+                        +name.template to_string<enc::utf8>().template to_string<char>()
+                        +"'"
                     };
             }
             else skip(closest_index);
@@ -171,14 +173,18 @@ protected:
             // skip '=' or '{'
             if(!next_char())
                 throw std::runtime_error{
-                    "unexpected end after '"+name.template to_string<enc::ascii>()+" "+ch.to_string()+"'"
+                    "unexpected end after '"
+                    +name.template to_string<enc::utf8>().template to_string<char>()
+                    +" "+ch.template to_string<enc::utf8>().template to_string<char>()+"'"
                 };
 
             if(ch == '{') {
-                parse_option<Encoding0>(begin, end, get<braced_arg>(option).options, beginning);
+                parse_option<Encoding0>(begin, end, std::get<braced_arg>(option).options, beginning);
                 if(is_end() || s().front() != '}')
                     throw std::runtime_error{
-                        "unexpected end of branced option '"+name.template to_string<enc::ascii>()+"'"
+                        "unexpected end of branced option '"
+                        +name.template to_string<enc::utf8>().template to_string<char>()
+                        +"'"
                     };
                 if(!next_char()) return;
             }
@@ -186,7 +192,9 @@ protected:
                 auto closing_index = s().find('}');
                 auto arg = s().substr(0, closing_index);
                 if(arg.empty()) throw std::runtime_error{
-                    "value of option '"+name.template to_string<enc::ascii>()+"' is empty"
+                    "value of option '"
+                    +name.template to_string<enc::utf8>().template to_string<char>()
+                    +"' is empty"
                 };
                 std::get<parser_with_arg<Encoding>>(option) (arg);
  
@@ -201,17 +209,15 @@ protected:
                 // it could be at the beginning of next word
             }
             else throw std::runtime_error {
-                "undefined character '"+ch.to_string()+"' after option name '"+name.template to_string<enc::ascii>()+"'"
+                "undefined character '"
+                +ch.template to_string<enc::utf8>().template to_string<char>()
+                +"' after option name '"
+                +name.template to_string<enc::utf8>().template to_string<char>()
+                +"'"
             };
         }
     }
 
 };
-
-using braced_clap = basic_braced_clap<char>;
-using wbraced_clap = basic_braced_clap<wchar_t>;
-using u8braced_clap = basic_braced_clap<char8_t>;
-using u16braced_clap = basic_braced_clap<char16_t>;
-using u32braced_clap = basic_braced_clap<char32_t>;
 
 }

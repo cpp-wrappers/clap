@@ -6,9 +6,9 @@
 #include <string_view>
 #include <sstream>
 #include <type_traits>
-#include "cxx_util/string.hpp"
 #include <iterator>
-#include <cxx_util/multibyte_string.hpp>
+#include <cxx_util/mb/string.hpp>
+#include <cxx_util/mb/string_view.hpp>
 
 namespace clap {
     template<class Encoding>
@@ -18,12 +18,19 @@ namespace clap {
     template<class Encoding>
     inline parser_with_arg<Encoding> value_parser(auto& val) {
         return [&val](mb::basic_string_view<Encoding> arg) {
-            if constexpr(util::is_assignable_from_string_view_v<typename Encoding::char_type, decltype(val)>)
-                val = arg.to_string_view();
-            else
-                std::basic_istringstream<typename Encoding::char_type>{
-                    arg.to_string()/*sorry for that*/
+            using ch_type = typename Encoding::char_type;
+            static_assert(sizeof(ch_type) <= 2, "");
+
+            if constexpr(sizeof(ch_type) == 1) {
+                std::basic_istringstream<char> {
+                    arg.template to_string<char>()
                 } >> val;
+            }
+            if constexpr(sizeof(ch_type) == 2) {
+                std::basic_istringstream<wchar_t> {
+                    arg.template to_string<wchar_t>()
+                } >> val;
+            }
         };
     }
 
@@ -33,18 +40,24 @@ namespace clap {
         };
     }
 
-    template<class Encoding, class T>
-    inline parser_with_arg<Encoding> values_parser(std::output_iterator<T> auto oit) {
+    template<class Encoding, class It, class T>
+    inline parser_with_arg<Encoding> values_parser(It oit) {
         return [oit](mb::basic_string_view<Encoding> arg) mutable {
-            if constexpr(util::is_constructible_from_string_view_v<typename Encoding::char_type, T>)
-                *oit++ = T{arg};
-            else {
-                T t;
-                std::basic_istringstream<typename Encoding::char_type>{
-                    arg.to_string()/*sorry for that*/
+            T t;
+            using ch_type = typename Encoding::char_type;
+            static_assert(sizeof(ch_type) >= 3, "");
+            
+            if constexpr(sizeof(ch_type) == 1) {
+                std::basic_istringstream<char> {
+                    arg.template to_string<char>()
                 } >> t;
-                *oit++ = std::move(t);
             }
+            if constexpr(sizeof(ch_type) == 2) {
+                std::basic_istringstream<wchar_t> {
+                    arg.template to_string<wchar_t>()
+                } >> t;
+            } 
+            *oit++ = std::move(t);
         };
     }
 }

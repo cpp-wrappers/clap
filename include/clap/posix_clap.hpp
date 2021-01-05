@@ -1,37 +1,33 @@
 #pragma once
 
-#include <bits/iterator_concepts.h>
 #include <cwchar>
-#include <cxx_util/encoding.hpp>
-#include <cxx_util/string.hpp>
 #include <locale>
 #include <stdexcept>
 #include <string>
 #include <map>
 #include <functional>
 #include <iterator>
-#include <ranges>
 #include <sstream>
 #include <string_view>
 #include <variant>
 #include <wchar.h>
 #include "parser.hpp"
-#include "cxx_util/multibyte_string.hpp"
+#include "cxx_util/mb/string.hpp"
 
 namespace clap {
 
 namespace posix {
 
-template<class Encoding>
+template<enc::encoding Encoding>
 struct basic_clap {
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character = mb::character<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using character_view = mb::character_view<Encoding0>;
 
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string = mb::basic_string<Encoding0>;
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     using string_view = mb::basic_string_view<Encoding0>;
 
     template<class It>
@@ -62,25 +58,25 @@ public:
 	auto& flag(auto name, bool& val) { return option(name, clap::flag_parser(val)); }
 	auto& value(auto name, auto& val) { return option(name, clap::value_parser<Encoding>(val)); }
 
-    template<
-        std::input_iterator It
-    >
-    requires mb::string<std::iter_value_t<It>>
-    void parse(
+    //template<
+        /*std::input_iteratorclass It*/
+    //>
+    //requires mb::string<std::iterator_traits<It>::value_type>
+    /*void parse(
         const It begin,
         const It end,
         operands_parser_t<It> operand_parser = {}
     ) const {
         parse< It, typename std::iter_value_t<It>::encoding_type >(begin, end);
-    } 
+    } */
 
-	template<std::input_iterator It, class Encoding0>
+	template<enc::encoding Encoding0, class InputIt>
     void parse(
-        const It begin,
-        const It end,
-        operands_parser_t<It> operand_parser = {}
+        const InputIt begin,
+        const InputIt end,
+        operands_parser_t<InputIt> operand_parser = {}
     ) const {
-        It arg = begin;
+        InputIt arg = begin;
         while(arg != end) {
             auto& str {*arg};
 
@@ -90,7 +86,7 @@ public:
             if(first_char != '-') break;
 
             if(second_char != '-') {
-                It prev = arg;
+                InputIt prev = arg;
                 parse_one_hyphen_arg<Encoding0>(begin, arg, end);
                 if(prev == arg)
                     break;
@@ -105,13 +101,13 @@ public:
             parse_operand(begin, arg, end, operand_parser);
 	}
 
-    template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
+    /*template<std::ranges::range R, class It = std::ranges::iterator_t<R>>
     void parse(R& range, operands_parser_t<It> operand_parser = {}) const {
         parse<std::ranges::iterator_t<R>>(range.begin(), range.end(), operand_parser);
-    }
+    }*/
 
 protected:
-    template<class Encoding0>
+    template<enc::encoding Encoding0>
     const option_t* option_by_name(character_view<Encoding0> name) const {
         auto converted = name.template convert<Encoding>();
         auto name_to_option = options.find(converted);
@@ -131,13 +127,13 @@ protected:
         }
 
         if(prev == arg)
-            throw std::runtime_error{"operands aren't parsed: "+((*arg).template to_string<enc::ascii>()) };
+            throw std::runtime_error {
+                "operands aren't parsed: "+(arg->template convert<enc::ascii>().to_string())
+            };
     }
 
-    template<class Encoding0, class It>
+    template<enc::encoding Encoding0, class It>
     void parse_one_hyphen_arg(const It begin, It& arg_it, const It end) const {
-        using namespace std;
-        using namespace std::literals;
         string_view<Encoding0> arg{*arg_it};
 
         for(
@@ -151,25 +147,35 @@ protected:
             if(!option) {
                 if(ch == first_ch) // check if not suboption
                     return; // assuming that's operand
-                else throw runtime_error{
-                    "undefined option: '"+name.template to_string<enc::ascii>()+"'"
+                else throw std::runtime_error {
+                    "undefined option: '"
+                    +name.template convert<enc::utf8>().template to_string<char>()
+                    +"'"
                 };
             }
 
             if(not option->has_arg()) {
-                get<parser_without_arg>(option->parser()) ();
+                std::invoke(std::get<parser_without_arg>(option->parser()));
                 continue;
             }
 
-            auto parser = get<parser_with_arg<Encoding>>(option->parser());
+            auto parser = std::get<parser_with_arg<Encoding>>(option->parser());
 
             if(++ch == arg.end()) {
-                if(++arg_it == end) throw runtime_error{
-                    "argument is required for option '"+name.template to_string<enc::ascii>()+"'"
+                if(++arg_it == end) throw std::runtime_error {
+                    "argument is required for option '"
+                    +name.template convert<enc::utf8>().template to_string<char>()
+                    +"'"
                 };
-                parser((*arg_it).template convert<Encoding>());
+                parser(
+                    (*arg_it)
+                    .template to_string<Encoding>()
+                );
             }
-            else parser(string_view<Encoding0>{ch, arg.end()}.template convert<Encoding>());
+            else parser(
+                string_view<Encoding0>{ch, arg.end()}
+                .template convert<Encoding>()
+            );
             break;
         }
 
